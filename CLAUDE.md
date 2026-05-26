@@ -30,6 +30,18 @@ Never special-case at the call site.
 - **Issue create labels:** must be integer IDs, not names. `forge issue create --label bug` resolves names client-side via `GET /repos/o/r/labels` first.
 - **PR comments:** posted to `/issues/{N}/comments` (the issues endpoint), not `/pulls/{N}/comments`. Same as gh.
 
+## Repo resolution gotchas
+
+When the origin remote uses an SSH `Host` alias from `~/.ssh/config`
+(e.g. `mooregit:owner/repo.git`), forge expands the alias via `ssh -G`
+to get the effective hostname before checking against the configured
+Forgejo host. This delegates to ssh's own config parser, handling
+Match blocks, Include directives, etc.
+
+If `ssh -G` fails (no ssh binary, no matching config), forge falls
+back to the literal alias name. The host-mismatch error still fires
+if the resolved name doesn't match the configured host.
+
 ## Error classes
 
 Six typed exceptions in `errors.py`, each with a static `code` class attribute mapping to exit codes 1-6:

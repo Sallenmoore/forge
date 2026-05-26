@@ -93,3 +93,101 @@ def test_git_remote_returns_none_outside_any_repo(tmp_path):
     spec = resolve_repo(r_flag=None, host="https://git.stevenamoore.dev",
                         cwd=str(tmp_path), env_default="fallback/repo")
     assert spec == RepoSpec(owner="fallback", repo="repo")
+
+
+def test_ssh_alias_is_expanded_via_ssh_minus_G(tmp_path, monkeypatch):
+    """SCP-form remote with an SSH alias resolves via `ssh -G <alias>`."""
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "config").write_text(
+        '[remote "origin"]\n'
+        '\turl = mooregit:samoore/storyteller.git\n'
+    )
+
+    # Stub subprocess.run to fake `ssh -G mooregit` output
+    def fake_run(cmd, **kwargs):
+        import subprocess
+        if cmd[:2] == ["ssh", "-G"] and cmd[2] == "mooregit":
+            return subprocess.CompletedProcess(
+                cmd, 0,
+                stdout=(
+                    "user git\n"
+                    "hostname git.stevenamoore.dev\n"
+                    "port 22\n"
+                ),
+                stderr="",
+            )
+        raise RuntimeError(f"unexpected subprocess call: {cmd}")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    spec = resolve_repo(r_flag=None, host="https://git.stevenamoore.dev",
+                        cwd=str(tmp_path), env_default=None)
+    assert spec == RepoSpec(owner="samoore", repo="storyteller")
+
+
+def test_ssh_alias_with_real_hostname_mismatch_still_raises(tmp_path, monkeypatch):
+    """If `ssh -G` reveals the alias points at a DIFFERENT host, still raise."""
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "config").write_text(
+        '[remote "origin"]\n'
+        '\turl = somealias:samoore/storyteller.git\n'
+    )
+
+    def fake_run(cmd, **kwargs):
+        import subprocess
+        return subprocess.CompletedProcess(
+            cmd, 0,
+            stdout="hostname github.com\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    with pytest.raises(UsageError, match=r"github\.com, not the configured Forgejo"):
+        resolve_repo(r_flag=None, host="https://git.stevenamoore.dev",
+                     cwd=str(tmp_path), env_default=None)
+
+
+def test_ssh_command_failure_falls_back_to_literal_host(tmp_path, monkeypatch):
+    """If `ssh -G` fails (no ssh binary, command error), fall back to the literal host.
+
+    The original behavior remains for backward compat: if the literal host
+    matches, fine; if it doesn't, raise (as before).
+    """
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "config").write_text(
+        '[remote "origin"]\n'
+        '\turl = git.stevenamoore.dev:samoore/storyteller.git\n'  # already-correct host
+    )
+
+    def fake_run(cmd, **kwargs):
+        raise FileNotFoundError("ssh not found")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    # Even though ssh -G failed, the literal host matches, so resolution works.
+    spec = resolve_repo(r_flag=None, host="https://git.stevenamoore.dev",
+                        cwd=str(tmp_path), env_default=None)
+    assert spec == RepoSpec(owner="samoore", repo="storyteller")
+
+
+def test_https_url_does_NOT_invoke_ssh_minus_G(tmp_path, monkeypatch):
+    """HTTPS URLs already have a real hostname; ssh -G should not be invoked."""
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "config").write_text(
+        '[remote "origin"]\n'
+        '\turl = https://git.stevenamoore.dev/samoore/storyteller.git\n'
+    )
+
+    called = []
+    def fake_run(cmd, **kwargs):
+        called.append(cmd)
+        import subprocess
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    spec = resolve_repo(r_flag=None, host="https://git.stevenamoore.dev",
+                        cwd=str(tmp_path), env_default=None)
+    assert spec == RepoSpec(owner="samoore", repo="storyteller")
+    assert called == []  # ssh -G must not have been called
