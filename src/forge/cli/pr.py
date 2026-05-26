@@ -63,3 +63,27 @@ def pr_list(ctx, repo, state, json_fields):
         click.echo("\t".join([
             str(r["number"]), r["title"], r["headRefName"], r["state"]
         ]))
+
+
+@pr.command("view")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--json", "json_fields", default=None,
+              help="Comma-separated gh-shape fields to emit as JSON")
+@click.pass_context
+def pr_view(ctx, number, repo, json_fields):
+    """Show details of a single PR."""
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        raw = client.get(f"/repos/{spec.owner}/{spec.repo}/pulls/{number}")
+    finally:
+        client.close()
+    translated = pr_to_gh(raw)
+    if json_fields:
+        click.echo(json_module.dumps(_filter_json([translated], json_fields)[0]))
+        return
+    click.echo(f"#{translated['number']} {translated['title']}")
+    click.echo(f"State:   {translated['state']}")
+    click.echo(f"Branch:  {translated['headRefName']} -> {translated['baseRefName']}")
+    click.echo(f"Author:  {translated['author']['login']}")
+    click.echo(f"URL:     {translated['url']}")

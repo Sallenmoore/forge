@@ -51,3 +51,21 @@ def test_pr_list_unknown_json_field_exits_2(mock_transport, monkeypatch):
                                        "--json", "nope"])
     assert result.exit_code == 2
     assert "unknown field: nope" in result.output
+
+
+def test_pr_view_prints_details(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    forgejo_pr = json.loads((FIXTURES / "forgejo" / "pr.json").read_text())
+    mock_transport.handler = lambda r: httpx.Response(200, json=forgejo_pr)
+    result = CliRunner().invoke(cli, ["pr", "view", "7", "-R", "samoore/forge"])
+    assert result.exit_code == 0
+    assert "Add forge CLI" in result.output
+    assert "OPEN" in result.output
+    assert "feat/forge" in result.output
+
+
+def test_pr_view_404_exits_3(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    mock_transport.handler = lambda r: httpx.Response(404, json={"message": "not found"})
+    result = CliRunner().invoke(cli, ["pr", "view", "999", "-R", "samoore/forge"])
+    assert result.exit_code == 3
