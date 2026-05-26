@@ -121,3 +121,20 @@ def _resolve_label_names(client: ForgejoClient, spec, names: tuple[str, ...]) ->
             raise UsageError(f"label '{name}' not found in {spec}")
         ids.append(by_name[name])
     return ids
+
+
+@issue.command("close")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.pass_context
+def issue_close(ctx, number, repo):
+    """Close an open issue."""
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        client.patch(
+            f"/repos/{spec.owner}/{spec.repo}/issues/{number}",
+            json={"state": "closed"},
+        )
+    finally:
+        client.close()
+    click.echo(f"Issue #{number} closed")

@@ -91,3 +91,18 @@ def test_issue_create_unknown_label_exits_2(mock_transport, monkeypatch):
     ])
     assert result.exit_code == 2
     assert "label 'made-up' not found" in result.output
+
+
+def test_issue_close_patches_state(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    captured = {}
+    def handler(r):
+        captured["method"] = r.method
+        captured["body"] = json.loads(r.content)
+        return httpx.Response(200, json={"state": "closed"})
+    mock_transport.handler = handler
+    result = CliRunner().invoke(cli, ["issue", "close", "42", "-R", "samoore/storyteller"])
+    assert result.exit_code == 0
+    assert captured["method"] == "PATCH"
+    assert captured["body"] == {"state": "closed"}
+    assert "closed" in result.output.lower()
