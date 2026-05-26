@@ -127,3 +127,21 @@ def pr_merge(ctx, number, repo, method):
     finally:
         client.close()
     click.echo(f"PR #{number} merged ({method})")
+
+
+@pr.command("checks")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.pass_context
+def pr_checks(ctx, number, repo):
+    """Show CI status for the PR's head commit."""
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        pr_data = client.get(f"/repos/{spec.owner}/{spec.repo}/pulls/{number}")
+        sha = pr_data["head"]["sha"]
+        status = client.get(f"/repos/{spec.owner}/{spec.repo}/commits/{sha}/status")
+    finally:
+        client.close()
+    click.echo(f"Combined: {status['state']}")
+    for s in status.get("statuses", []):
+        click.echo(f"  {s.get('context', '?')}: {s.get('status', '?')}")

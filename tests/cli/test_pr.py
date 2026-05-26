@@ -119,3 +119,25 @@ def test_pr_merge_with_squash(mock_transport, monkeypatch):
     result = CliRunner().invoke(cli, ["pr", "merge", "7", "-R", "samoore/forge", "--squash"])
     assert result.exit_code == 0
     assert captured["body"] == {"Do": "squash"}
+
+
+def test_pr_checks_lists_combined_status(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    calls = []
+    def handler(r):
+        calls.append(r.url.path)
+        if "/pulls/" in r.url.path:
+            return httpx.Response(200, json={"head": {"sha": "abc123"}})
+        return httpx.Response(200, json={
+            "state": "failure",
+            "statuses": [
+                {"context": "build (3.12)", "status": "failure"},
+                {"context": "build (3.13)", "status": "success"},
+            ],
+        })
+    mock_transport.handler = handler
+    result = CliRunner().invoke(cli, ["pr", "checks", "7", "-R", "samoore/forge"])
+    assert result.exit_code == 0
+    assert "build (3.12)" in result.output
+    assert "failure" in result.output
+    assert "build (3.13)" in result.output
