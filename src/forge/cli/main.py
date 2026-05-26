@@ -56,12 +56,15 @@ def cli(ctx, token, host, repo, debug):
         click.echo(ctx.get_help())
 
 
-# Deferred import: auth.py doesn't import main.py, but main.py imports auth.py.
-# Keeping the registration here makes main.py the single source of truth for
-# "what subcommands does cli have", at the cost of a non-top-of-file import.
+# Deferred imports: subcommand modules don't import main.py, but main.py
+# imports them. Keeping registration here makes main.py the single source of
+# truth for "what subcommands does cli have", at the cost of non-top-of-file
+# imports.
 from forge.cli.auth import auth as _auth_group  # noqa: E402
+from forge.cli.pr import pr as _pr_group  # noqa: E402
 
 cli.add_command(_auth_group)
+cli.add_command(_pr_group)
 
 
 def main() -> int:
