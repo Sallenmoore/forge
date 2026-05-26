@@ -94,3 +94,28 @@ def test_pr_create_posts_payload_and_returns_url(mock_transport, monkeypatch):
     assert captured["method"] == "POST"
     assert captured["body"] == {"title": "x", "body": "y", "base": "main", "head": "feat/x"}
     assert "/pulls/8" in result.output
+
+
+def test_pr_merge_sends_capital_Do_field(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    captured = {}
+    def handler(r):
+        captured["body"] = json.loads(r.content)
+        return httpx.Response(200, json={"merged": True})
+    mock_transport.handler = handler
+    result = CliRunner().invoke(cli, ["pr", "merge", "7", "-R", "samoore/forge"])
+    assert result.exit_code == 0
+    assert captured["body"] == {"Do": "merge"}  # capital D — Forgejo quirk
+    assert "merged" in result.output.lower()
+
+
+def test_pr_merge_with_squash(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    captured = {}
+    def handler(r):
+        captured["body"] = json.loads(r.content)
+        return httpx.Response(200, json={})
+    mock_transport.handler = handler
+    result = CliRunner().invoke(cli, ["pr", "merge", "7", "-R", "samoore/forge", "--squash"])
+    assert result.exit_code == 0
+    assert captured["body"] == {"Do": "squash"}

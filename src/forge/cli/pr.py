@@ -107,3 +107,23 @@ def pr_create(ctx, repo, title, body, base, head):
     finally:
         client.close()
     click.echo(resp["html_url"])
+
+
+@pr.command("merge")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--squash", "method", flag_value="squash")
+@click.option("--rebase", "method", flag_value="rebase")
+@click.option("--merge", "method", flag_value="merge", default=True)
+@click.pass_context
+def pr_merge(ctx, number, repo, method):
+    """Merge a PR (uses Forgejo's capital-D `Do` field)."""
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        client.post(
+            f"/repos/{spec.owner}/{spec.repo}/pulls/{number}/merge",
+            json={"Do": method},
+        )
+    finally:
+        client.close()
+    click.echo(f"PR #{number} merged ({method})")
