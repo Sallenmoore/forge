@@ -52,3 +52,42 @@ def test_issue_view_prints_details(mock_transport, monkeypatch):
     assert "Something broke" in result.output
     assert "OPEN" in result.output
     assert "samoore" in result.output
+
+
+def test_issue_create_resolves_label_names_to_ids(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    captured = {}
+    def handler(r):
+        if r.url.path.endswith("/labels"):
+            return httpx.Response(200, json=[
+                {"id": 1, "name": "bug"},
+                {"id": 2, "name": "enhancement"},
+            ])
+        captured["body"] = json.loads(r.content)
+        return httpx.Response(201, json={
+            "number": 43,
+            "html_url": "https://git.stevenamoore.dev/o/r/issues/43",
+        })
+    mock_transport.handler = handler
+    result = CliRunner().invoke(cli, [
+        "issue", "create", "-R", "samoore/storyteller",
+        "--title", "x", "--body", "y", "--label", "bug", "--label", "enhancement",
+    ])
+    assert result.exit_code == 0
+    assert captured["body"]["title"] == "x"
+    assert captured["body"]["body"] == "y"
+    assert sorted(captured["body"]["labels"]) == [1, 2]  # integer IDs
+    assert "/issues/43" in result.output
+
+
+def test_issue_create_unknown_label_exits_2(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    mock_transport.handler = lambda r: httpx.Response(200, json=[
+        {"id": 1, "name": "bug"},
+    ])
+    result = CliRunner().invoke(cli, [
+        "issue", "create", "-R", "samoore/storyteller",
+        "--title", "x", "--label", "made-up",
+    ])
+    assert result.exit_code == 2
+    assert "label 'made-up' not found" in result.output

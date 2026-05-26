@@ -89,3 +89,35 @@ def issue_view(ctx, number, repo, json_fields):
     if translated.get("body"):
         click.echo("")
         click.echo(translated["body"])
+
+
+@issue.command("create")
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--title", required=True)
+@click.option("--body", default="")
+@click.option("--label", "labels", multiple=True,
+              help="Label name (repeatable); resolved to integer IDs")
+@click.pass_context
+def issue_create(ctx, repo, title, body, labels):
+    """Open a new issue. Label names are resolved to Forgejo's integer IDs."""
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        label_ids = _resolve_label_names(client, spec, labels) if labels else []
+        resp = client.post(
+            f"/repos/{spec.owner}/{spec.repo}/issues",
+            json={"title": title, "body": body, "labels": label_ids},
+        )
+    finally:
+        client.close()
+    click.echo(resp.get("html_url", "issue created"))
+
+
+def _resolve_label_names(client: ForgejoClient, spec, names: tuple[str, ...]) -> list[int]:
+    all_labels = client.get(f"/repos/{spec.owner}/{spec.repo}/labels")
+    by_name = {lbl["name"]: lbl["id"] for lbl in all_labels}
+    ids = []
+    for name in names:
+        if name not in by_name:
+            raise UsageError(f"label '{name}' not found in {spec}")
+        ids.append(by_name[name])
+    return ids
