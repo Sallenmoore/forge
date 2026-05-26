@@ -1,0 +1,15 @@
+{
+  "number": 7,
+  "title": "Add forge CLI",
+  "state": "OPEN",
+  "isDraft": false,
+  "author": { "login": "samoore" },
+  "headRefName": "feat/forge",
+  "headRefOid": "abc1234",
+  "baseRefName": "main",
+  "createdAt": "2026-05-26T12:00:00Z",
+  "url": "https://git.stevenamoore.dev/samoore/forge/pulls/7",
+  "labels": [
+    { "name": "enhancement", "color": "84b6eb" }
+  ]
+}
