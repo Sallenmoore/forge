@@ -145,3 +145,21 @@ def pr_checks(ctx, number, repo):
     click.echo(f"Combined: {status['state']}")
     for s in status.get("statuses", []):
         click.echo(f"  {s.get('context', '?')}: {s.get('status', '?')}")
+
+
+@pr.command("comment")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--body", required=True)
+@click.pass_context
+def pr_comment(ctx, number, repo, body):
+    """Add a comment to a PR (uses the /issues/{n}/comments endpoint)."""
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        resp = client.post(
+            f"/repos/{spec.owner}/{spec.repo}/issues/{number}/comments",
+            json={"body": body},
+        )
+    finally:
+        client.close()
+    click.echo(resp.get("html_url", "comment added"))

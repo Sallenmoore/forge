@@ -141,3 +141,19 @@ def test_pr_checks_lists_combined_status(mock_transport, monkeypatch):
     assert "build (3.12)" in result.output
     assert "failure" in result.output
     assert "build (3.13)" in result.output
+
+
+def test_pr_comment_posts_to_issues_endpoint(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    captured = {}
+    def handler(r):
+        captured["path"] = r.url.path
+        captured["body"] = json.loads(r.content)
+        return httpx.Response(201, json={"html_url": "https://x/comments/1"})
+    mock_transport.handler = handler
+    result = CliRunner().invoke(cli, [
+        "pr", "comment", "7", "-R", "samoore/forge", "--body", "Looks good"
+    ])
+    assert result.exit_code == 0
+    assert captured["path"] == "/api/v1/repos/samoore/forge/issues/7/comments"
+    assert captured["body"] == {"body": "Looks good"}
