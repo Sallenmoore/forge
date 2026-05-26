@@ -1,5 +1,6 @@
 # src/forge/cli/auth.py
 import os
+import sys
 
 import click
 
@@ -35,3 +36,26 @@ def _token_source_label(ctx) -> str:
     if os.environ.get("FORGEJO_TOKEN"):
         return "FORGEJO_TOKEN env var"
     return "~/.secrets/forgejo.env"
+
+
+@auth.command("git-credential")
+@click.argument("op", type=click.Choice(["get", "store", "erase"]))
+@click.pass_context
+def auth_git_credential(ctx, op):
+    """git credential helper protocol.
+
+    Set up with:
+        git config --global credential.https://git.stevenamoore.dev.helper \\
+            '!forge auth git-credential'
+    """
+    _ = sys.stdin.read()  # drain stdin (git sends k=v lines)
+    if op != "get":
+        return  # store/erase are no-ops; tokens are out-of-band
+    token = discover_token(explicit=ctx.obj.get("token"), secrets_path=None)
+    client = _build_client(ctx.obj.get("token"), ctx.obj.get("host"))
+    try:
+        user = client.get("/user")
+    finally:
+        client.close()
+    click.echo(f"username={user['login']}")
+    click.echo(f"password={token}")

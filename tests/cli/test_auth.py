@@ -103,3 +103,27 @@ def test_build_client_no_token_raises_auth_error(env_no_token):
 
     with pytest.raises(AuthError, match="no token"):
         _build_client(token=None, host=None)
+
+
+def test_auth_git_credential_get_prints_protocol(mock_transport, monkeypatch):
+    monkeypatch.setenv("FORGEJO_TOKEN", "t-from-env")
+    monkeypatch.setattr(
+        "forge.cli.auth._build_client",
+        lambda token, host: _stub_client(mock_transport, host)
+    )
+    mock_transport.handler = lambda r: httpx.Response(200, json={"login": "samoore"})
+    result = CliRunner().invoke(
+        cli, ["auth", "git-credential", "get"],
+        input="host=git.stevenamoore.dev\nprotocol=https\n\n",
+    )
+    assert result.exit_code == 0
+    assert "username=samoore" in result.output
+    assert "password=t-from-env" in result.output
+
+
+def test_auth_git_credential_store_is_noop(monkeypatch):
+    monkeypatch.setenv("FORGEJO_TOKEN", "t")
+    result = CliRunner().invoke(cli, ["auth", "git-credential", "store"],
+                                input="host=git.stevenamoore.dev\nprotocol=https\n\n")
+    assert result.exit_code == 0
+    assert result.output == ""
