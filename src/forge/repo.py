@@ -36,9 +36,10 @@ def resolve_repo(
 
 
 def _from_git_remote(cwd: Path, host: str) -> RepoSpec | None:
-    config_path = cwd / ".git" / "config"
-    if not config_path.is_file():
+    git_root = _find_git_root(cwd)
+    if git_root is None:
         return None
+    config_path = git_root / ".git" / "config"
     text = config_path.read_text()
     m = re.search(r'\[remote\s+"origin"\][^\[]*?url\s*=\s*(\S+)', text, re.DOTALL)
     if not m:
@@ -54,6 +55,14 @@ def _from_git_remote(cwd: Path, host: str) -> RepoSpec | None:
         )
     path = remote_path.removesuffix(".git")
     return _parse_owner_repo(path)
+
+
+def _find_git_root(cwd: Path) -> Path | None:
+    """Walk up from cwd looking for a directory containing .git/config."""
+    for d in [cwd, *cwd.parents]:
+        if (d / ".git" / "config").is_file():
+            return d
+    return None
 
 
 def _parse_remote_url(remote_url: str) -> tuple[str, str]:
