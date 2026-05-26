@@ -139,3 +139,13 @@ def test_auth_git_credential_store_is_noop(monkeypatch):
                                 input="host=git.stevenamoore.dev\nprotocol=https\n\n")
     assert result.exit_code == 0
     assert result.output == ""
+
+
+def test_git_credential_get_no_token_exits_0_empty(env_no_token):
+    """If no token is discoverable, exit 0 with empty stdout so git can fall through."""
+    result = CliRunner().invoke(
+        cli, ["auth", "git-credential", "get"],
+        input="host=git.stevenamoore.dev\nprotocol=https\n\n",
+    )
+    assert result.exit_code == 0
+    assert result.output == ""

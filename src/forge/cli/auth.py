@@ -5,6 +5,7 @@ import sys
 import click
 
 from forge.client import DEFAULT_HOST, ForgejoClient, discover_token
+from forge.errors import AuthError
 
 
 def _build_client(token: str | None, host: str | None) -> ForgejoClient:
@@ -52,11 +53,16 @@ def auth_git_credential(ctx, op):
     _ = sys.stdin.read()  # drain stdin (git sends k=v lines)
     if op != "get":
         return  # store/erase are no-ops; tokens are out-of-band
-    token = discover_token(explicit=ctx.obj.get("token"), secrets_path=None)
-    client = _build_client(ctx.obj.get("token"), ctx.obj.get("host"))
     try:
-        user = client.get("/user")
-    finally:
-        client.close()
+        token = discover_token(explicit=ctx.obj.get("token"), secrets_path=None)
+        client = _build_client(ctx.obj.get("token"), ctx.obj.get("host"))
+        try:
+            user = client.get("/user")
+        finally:
+            client.close()
+    except AuthError:
+        # git's credential helper protocol expects exit 0 with empty stdout
+        # so git can fall through to the next helper or prompt.
+        return
     click.echo(f"username={user['login']}")
     click.echo(f"password={token}")
