@@ -1,5 +1,12 @@
 # forge — conventions
 
+## Known v0.1 limitations
+
+- `--debug` flag enables Python tracebacks on internal errors but does NOT yet log httpx requests/responses to stderr. The full HTTP debug log is planned for v0.2. Help text and spec describe the intended end state.
+- `--no-retry` flag and `Retry-After` header handling not implemented (deferred to v0.2; self-hosted Forgejo rarely rate-limits).
+- Per-file `_build_client` / `_resolve` duplication in cli/pr.py and cli/issue.py. Extraction to cli/_common.py happens when divergence pressure justifies it (likely v0.2).
+- Live fixture-capture script (`tests/fixtures/capture.py`) deferred to v0.2; current fixtures are hand-crafted from Forgejo's documented response shapes.
+
 ## Dependency direction (load-bearing)
 
 `src/forge/cli/*.py` may import from `client.py`, `translate.py`, `repo.py`, `errors.py`. **The reverse is forbidden.**
