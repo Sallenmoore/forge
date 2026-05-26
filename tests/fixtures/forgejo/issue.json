@@ -1,0 +1,10 @@
+{
+  "number": 42,
+  "title": "Something broke",
+  "body": "Steps to reproduce: ...",
+  "state": "open",
+  "user": { "login": "samoore" },
+  "created_at": "2026-05-26T13:00:00Z",
+  "html_url": "https://git.stevenamoore.dev/samoore/storyteller/issues/42",
+  "labels": [{ "name": "bug", "color": "d73a4a" }]
+}

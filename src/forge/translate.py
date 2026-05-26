@@ -49,3 +49,23 @@ def pr_to_gh(forgejo_pr: dict) -> dict:
 JSON_FIELD_NAMES = {
     "pr": tuple(PR_FIELDS.keys()),
 }
+
+
+ISSUE_FIELDS: dict[str, str | Callable[[dict], Any]] = {
+    "number":     "number",
+    "title":      "title",
+    "body":       "body",
+    "state":      lambda p: p["state"].upper(),
+    "author":     lambda p: {"login": p["user"]["login"]},
+    "createdAt":  "created_at",
+    "url":        "html_url",
+    "labels":     lambda p: [{"name": lbl["name"], "color": lbl["color"]}
+                              for lbl in p.get("labels", [])],
+}
+
+
+def issue_to_gh(forgejo_issue: dict) -> dict:
+    return _translate(forgejo_issue, ISSUE_FIELDS)
+
+
+JSON_FIELD_NAMES["issue"] = tuple(ISSUE_FIELDS.keys())

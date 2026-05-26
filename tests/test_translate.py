@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from forge.translate import JSON_FIELD_NAMES, PR_FIELDS, pr_to_gh
+from forge.translate import ISSUE_FIELDS, JSON_FIELD_NAMES, PR_FIELDS, issue_to_gh, pr_to_gh
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -30,3 +30,16 @@ def test_json_field_names_returns_known_pr_fields():
     assert "headRefName" in names
     assert "author" in names
     assert names == tuple(PR_FIELDS.keys())
+
+
+def test_issue_translation_matches_gh_fixture():
+    forgejo_issue = json.loads((FIXTURES / "forgejo" / "issue.json").read_text())
+    expected = json.loads((FIXTURES / "gh" / "issue.json").read_text())
+    assert issue_to_gh(forgejo_issue) == expected
+
+
+def test_json_field_names_returns_known_issue_fields():
+    names = JSON_FIELD_NAMES["issue"]
+    assert "number" in names
+    assert "body" in names
+    assert names == tuple(ISSUE_FIELDS.keys())   # registry coupling, matches T7 pattern
