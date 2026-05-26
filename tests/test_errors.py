@@ -1,8 +1,11 @@
 # tests/test_errors.py
-import pytest
 from forge.errors import (
-    ForgeError, UsageError, NotFoundError, AuthError,
-    ServerError, ValidationError,
+    AuthError,
+    ForgeError,
+    NotFoundError,
+    ServerError,
+    UsageError,
+    ValidationError,
 )
 
 
