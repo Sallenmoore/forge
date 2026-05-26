@@ -20,6 +20,15 @@ def test_forge_help_flag():
     assert "Usage" in result.output
 
 
+def test_forge_version_flag():
+    from forge import __version__
+
+    result = CliRunner().invoke(cli, ["--version"])
+    assert result.exit_code == 0
+    assert "forge" in result.output
+    assert __version__ in result.output
+
+
 def test_unknown_subcommand_exits_2():
     result = CliRunner().invoke(cli, ["wat"])
     assert result.exit_code == 2

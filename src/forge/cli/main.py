@@ -5,6 +5,7 @@ import traceback
 
 import click
 
+from forge import __version__
 from forge.errors import ForgeError
 
 _ERROR_LABELS = {
@@ -39,6 +40,11 @@ class _ForgeGroup(click.Group):
 
 
 @click.group(cls=_ForgeGroup, invoke_without_command=True)
+@click.version_option(
+    version=__version__,
+    prog_name="forge",
+    message="%(prog)s, version %(version)s",
+)
 @click.option("--token", default=None, help="API token (overrides env and ~/.secrets)")
 @click.option("--host", default=None, help="Forgejo instance URL")
 @click.option("-R", "repo", default=None, help="owner/repo")
