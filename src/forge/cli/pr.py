@@ -87,3 +87,23 @@ def pr_view(ctx, number, repo, json_fields):
     click.echo(f"Branch:  {translated['headRefName']} -> {translated['baseRefName']}")
     click.echo(f"Author:  {translated['author']['login']}")
     click.echo(f"URL:     {translated['url']}")
+
+
+@pr.command("create")
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--title", required=True)
+@click.option("--body", default="")
+@click.option("--base", required=True)
+@click.option("--head", required=True)
+@click.pass_context
+def pr_create(ctx, repo, title, body, base, head):
+    """Open a new PR."""
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        resp = client.post(
+            f"/repos/{spec.owner}/{spec.repo}/pulls",
+            json={"title": title, "body": body, "base": base, "head": head},
+        )
+    finally:
+        client.close()
+    click.echo(resp["html_url"])

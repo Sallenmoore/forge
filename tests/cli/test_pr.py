@@ -69,3 +69,28 @@ def test_pr_view_404_exits_3(mock_transport, monkeypatch):
     mock_transport.handler = lambda r: httpx.Response(404, json={"message": "not found"})
     result = CliRunner().invoke(cli, ["pr", "view", "999", "-R", "samoore/forge"])
     assert result.exit_code == 3
+
+
+def test_pr_create_posts_payload_and_returns_url(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    captured = {}
+    def handler(r):
+        captured["method"] = r.method
+        captured["path"] = r.url.path
+        captured["body"] = json.loads(r.content)
+        return httpx.Response(201, json={
+            "number": 8, "html_url": "https://git.stevenamoore.dev/o/r/pulls/8",
+            "title": "x", "state": "open", "merged": False, "draft": False,
+            "user": {"login": "samoore"},
+            "head": {"ref": "feat/x", "sha": "1"}, "base": {"ref": "main", "sha": "2"},
+            "created_at": "2026-05-26T14:00:00Z", "labels": [],
+        })
+    mock_transport.handler = handler
+    result = CliRunner().invoke(cli, [
+        "pr", "create", "-R", "samoore/forge",
+        "--title", "x", "--body", "y", "--base", "main", "--head", "feat/x",
+    ])
+    assert result.exit_code == 0
+    assert captured["method"] == "POST"
+    assert captured["body"] == {"title": "x", "body": "y", "base": "main", "head": "feat/x"}
+    assert "/pulls/8" in result.output
