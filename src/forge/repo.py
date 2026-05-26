@@ -1,5 +1,6 @@
 # src/forge/repo.py
 import re
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -68,8 +69,13 @@ def _find_git_root(cwd: Path) -> Path | None:
 def _parse_remote_url(remote_url: str) -> tuple[str, str]:
     """Return (host, path) from either an http(s)/ssh URL or an SCP-style remote.
 
-    SCP-style: git@host:owner/repo[.git]  (no scheme, single colon before path)
-    URL-style: https://host/owner/repo[.git] or ssh://user@host/owner/repo[.git]
+    For SCP-style URLs (no scheme), the leading "host" portion may be an
+    SSH Host alias from ~/.ssh/config. We expand it via `ssh -G <host>` so
+    `forge` sees the same resolved hostname that git itself sees at the
+    transport layer.
+
+    SCP-style: git@host:owner/repo[.git]
+    URL-style: https://host/owner/repo[.git]  or  ssh://user@host/owner/repo[.git]
     """
     if "://" in remote_url:
         parsed = urlparse(remote_url)
@@ -77,8 +83,32 @@ def _parse_remote_url(remote_url: str) -> tuple[str, str]:
     # SCP form: [user@]host:path  (no scheme, single colon, path has no leading slash)
     scp_match = re.match(r"^(?:[^@]+@)?([^:/]+):(.+)$", remote_url)
     if scp_match:
-        return (scp_match.group(1), scp_match.group(2))
+        literal_host = scp_match.group(1)
+        return (_resolve_ssh_alias(literal_host), scp_match.group(2))
     return ("", remote_url)
+
+
+def _resolve_ssh_alias(host: str) -> str:
+    """Expand an SSH Host alias via `ssh -G <host>`.
+
+    Returns the alias's effective hostname if ssh expansion succeeds;
+    otherwise returns the literal host unchanged (graceful fallback so
+    behavior is unchanged on systems without ssh or with broken configs).
+    """
+    try:
+        result = subprocess.run(
+            ["ssh", "-G", host],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=True,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError, subprocess.TimeoutExpired):
+        return host
+    for line in result.stdout.splitlines():
+        if line.startswith("hostname "):
+            return line.split(None, 1)[1]
+    return host
 
 
 def _parse_owner_repo(value: str) -> RepoSpec:
