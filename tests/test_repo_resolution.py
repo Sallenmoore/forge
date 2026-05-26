@@ -60,3 +60,15 @@ def test_git_remote_ssh_host_mismatch_raises(tmp_path):
     with pytest.raises(UsageError, match=r"github\.com, not the configured Forgejo"):
         resolve_repo(r_flag=None, host="https://git.stevenamoore.dev",
                      cwd=str(tmp_path), env_default=None)
+
+
+def test_env_default_used_when_no_r_no_remote(tmp_path):
+    spec = resolve_repo(r_flag=None, host="https://git.stevenamoore.dev",
+                        cwd=str(tmp_path), env_default="samoore/forge")
+    assert spec == RepoSpec(owner="samoore", repo="forge")
+
+
+def test_env_default_used_only_when_r_absent(tmp_path):
+    spec = resolve_repo(r_flag="other/repo", host="https://git.stevenamoore.dev",
+                        cwd=str(tmp_path), env_default="samoore/forge")
+    assert spec == RepoSpec(owner="other", repo="repo")

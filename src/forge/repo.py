@@ -28,6 +28,8 @@ def resolve_repo(
     from_remote = _from_git_remote(Path(cwd), host)
     if from_remote is not None:
         return from_remote
+    if env_default:
+        return _parse_owner_repo(env_default)
     raise UsageError(
         "repo: no -R flag, git remote, or FORGEJO_DEFAULT_REPO available"
     )
