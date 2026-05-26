@@ -106,3 +106,19 @@ def test_issue_close_patches_state(mock_transport, monkeypatch):
     assert captured["method"] == "PATCH"
     assert captured["body"] == {"state": "closed"}
     assert "closed" in result.output.lower()
+
+
+def test_issue_comment_posts_to_comments_endpoint(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    captured = {}
+    def handler(r):
+        captured["path"] = r.url.path
+        captured["body"] = json.loads(r.content)
+        return httpx.Response(201, json={"html_url": "https://x/comments/9"})
+    mock_transport.handler = handler
+    result = CliRunner().invoke(cli, [
+        "issue", "comment", "42", "-R", "samoore/storyteller", "--body", "ack"
+    ])
+    assert result.exit_code == 0
+    assert captured["path"] == "/api/v1/repos/samoore/storyteller/issues/42/comments"
+    assert captured["body"] == {"body": "ack"}

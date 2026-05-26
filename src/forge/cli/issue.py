@@ -138,3 +138,21 @@ def issue_close(ctx, number, repo):
     finally:
         client.close()
     click.echo(f"Issue #{number} closed")
+
+
+@issue.command("comment")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--body", required=True)
+@click.pass_context
+def issue_comment(ctx, number, repo, body):
+    """Add a comment to an issue."""
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        resp = client.post(
+            f"/repos/{spec.owner}/{spec.repo}/issues/{number}/comments",
+            json={"body": body},
+        )
+    finally:
+        client.close()
+    click.echo(resp.get("html_url", "comment added"))
