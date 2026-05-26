@@ -9,7 +9,8 @@ from forge.client import DEFAULT_HOST, ForgejoClient, discover_token
 
 def _build_client(token: str | None, host: str | None) -> ForgejoClient:
     resolved_token = discover_token(explicit=token, secrets_path=None)
-    return ForgejoClient(host=host or DEFAULT_HOST, token=resolved_token)
+    resolved_host = host or os.environ.get("FORGEJO_HOST") or DEFAULT_HOST
+    return ForgejoClient(host=resolved_host, token=resolved_token)
 
 
 @click.group()

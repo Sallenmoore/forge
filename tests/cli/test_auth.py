@@ -94,6 +94,18 @@ def test_build_client_with_env_token(env_no_token, monkeypatch):
         client.close()
 
 
+def test_build_client_uses_FORGEJO_HOST_env(env_no_token, monkeypatch):
+    """_build_client uses FORGEJO_HOST env when --host flag is absent."""
+    from forge.cli.auth import _build_client
+    monkeypatch.setenv("FORGEJO_HOST", "https://other.example")
+    monkeypatch.setenv("FORGEJO_TOKEN", "t")
+    client = _build_client(token=None, host=None)
+    try:
+        assert client._host == "https://other.example"
+    finally:
+        client.close()
+
+
 def test_build_client_no_token_raises_auth_error(env_no_token):
     """_build_client surfaces discover_token's AuthError when no token sources available."""
     import pytest

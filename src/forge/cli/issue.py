@@ -11,8 +11,9 @@ from forge.translate import JSON_FIELD_NAMES, issue_to_gh
 
 
 def _build_client(token: str | None, host: str | None) -> ForgejoClient:
+    resolved_host = host or os.environ.get("FORGEJO_HOST") or DEFAULT_HOST
     return ForgejoClient(
-        host=host or DEFAULT_HOST,
+        host=resolved_host,
         token=discover_token(explicit=token, secrets_path=None),
     )
 
