@@ -20,7 +20,7 @@ dev = [
 ]
 
 [project.scripts]
-forge = "forge.cli.main:cli"
+forge = "forge.cli.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/forge"]
