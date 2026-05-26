@@ -41,3 +41,14 @@ def test_issue_list_json_field_validation(mock_transport, monkeypatch):
                                        "--json", "nope"])
     assert result.exit_code == 2
     assert "unknown field: nope" in result.output
+
+
+def test_issue_view_prints_details(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    forgejo_issue = json.loads((FIXTURES / "forgejo" / "issue.json").read_text())
+    mock_transport.handler = lambda r: httpx.Response(200, json=forgejo_issue)
+    result = CliRunner().invoke(cli, ["issue", "view", "42", "-R", "samoore/storyteller"])
+    assert result.exit_code == 0
+    assert "Something broke" in result.output
+    assert "OPEN" in result.output
+    assert "samoore" in result.output

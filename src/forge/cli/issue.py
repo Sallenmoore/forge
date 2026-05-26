@@ -64,3 +64,28 @@ def issue_list(ctx, repo, state, json_fields):
     for r in rows:
         labels = ",".join(lbl["name"] for lbl in r.get("labels", []))
         click.echo("\t".join([str(r["number"]), r["title"], r["state"], labels]))
+
+
+@issue.command("view")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--json", "json_fields", default=None)
+@click.pass_context
+def issue_view(ctx, number, repo, json_fields):
+    """Show issue details."""
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        raw = client.get(f"/repos/{spec.owner}/{spec.repo}/issues/{number}")
+    finally:
+        client.close()
+    translated = issue_to_gh(raw)
+    if json_fields:
+        click.echo(json_module.dumps(_filter_json([translated], json_fields)[0]))
+        return
+    click.echo(f"#{translated['number']} {translated['title']}")
+    click.echo(f"State:  {translated['state']}")
+    click.echo(f"Author: {translated['author']['login']}")
+    click.echo(f"URL:    {translated['url']}")
+    if translated.get("body"):
+        click.echo("")
+        click.echo(translated["body"])
