@@ -61,10 +61,12 @@ def cli(ctx, token, host, repo, debug):
 # truth for "what subcommands does cli have", at the cost of non-top-of-file
 # imports.
 from forge.cli.auth import auth as _auth_group  # noqa: E402
+from forge.cli.issue import issue as _issue_group  # noqa: E402
 from forge.cli.pr import pr as _pr_group  # noqa: E402
 
 cli.add_command(_auth_group)
 cli.add_command(_pr_group)
+cli.add_command(_issue_group)
 
 
 def main() -> int:
