@@ -162,8 +162,11 @@ def test_pr_comment_posts_to_issues_endpoint(mock_transport, monkeypatch):
 
 def test_pr_close_patches_state_closed(monkeypatch, mock_transport):
     """pr close N → PATCH /repos/o/r/pulls/N {state: closed}."""
-    import httpx, json as _json
+    import json as _json
+
+    import httpx
     from click.testing import CliRunner
+
     from forge.cli.main import cli
 
     seen = {}
@@ -194,8 +197,11 @@ def test_pr_close_patches_state_closed(monkeypatch, mock_transport):
 
 def test_pr_reopen_patches_state_open(monkeypatch, mock_transport):
     """pr reopen N → PATCH state=open."""
-    import httpx, json as _json
+    import json as _json
+
+    import httpx
     from click.testing import CliRunner
+
     from forge.cli.main import cli
 
     seen = {}
@@ -221,6 +227,7 @@ def test_pr_reopen_patches_state_open(monkeypatch, mock_transport):
 def test_pr_close_404_exits_3(monkeypatch, mock_transport):
     import httpx
     from click.testing import CliRunner
+
     from forge.cli.main import cli
 
     mock_transport.handler = lambda request: httpx.Response(404, json={"message": "not found"})
@@ -239,8 +246,11 @@ def test_pr_close_404_exits_3(monkeypatch, mock_transport):
 
 def test_pr_edit_base_patches_base_field(monkeypatch, mock_transport):
     """pr edit N --base X → PATCH /pulls/N {base: X}."""
-    import httpx, json as _json
+    import json as _json
+
+    import httpx
     from click.testing import CliRunner
+
     from forge.cli.main import cli
 
     seen = {}
@@ -265,8 +275,11 @@ def test_pr_edit_base_patches_base_field(monkeypatch, mock_transport):
 
 
 def test_pr_edit_multiple_fields_sends_all(monkeypatch, mock_transport):
-    import httpx, json as _json
+    import json as _json
+
+    import httpx
     from click.testing import CliRunner
+
     from forge.cli.main import cli
 
     seen = {}
@@ -293,6 +306,7 @@ def test_pr_edit_multiple_fields_sends_all(monkeypatch, mock_transport):
 
 def test_pr_edit_no_fields_exits_2(monkeypatch):
     from click.testing import CliRunner
+
     from forge.cli.main import cli
     monkeypatch.setenv("FORGEJO_TOKEN", "tok")
 
@@ -304,6 +318,7 @@ def test_pr_edit_no_fields_exits_2(monkeypatch):
 def test_pr_edit_422_surfaces_validation_error(monkeypatch, mock_transport):
     import httpx
     from click.testing import CliRunner
+
     from forge.cli.main import cli
 
     mock_transport.handler = lambda request: httpx.Response(
@@ -326,8 +341,9 @@ def test_pr_log_fetches_failed_runs_for_head_sha(monkeypatch, mock_transport):
     """pr log N: resolve PR → head_sha; list tasks; keep matching+failed; concat logs."""
     import httpx
     from click.testing import CliRunner
-    from forge.cli.main import cli
+
     from forge import logs
+    from forge.cli.main import cli
 
     pr_response = {
         "number": 5, "title": "test", "state": "open", "merged": False,
@@ -390,8 +406,9 @@ def test_pr_log_fetches_failed_runs_for_head_sha(monkeypatch, mock_transport):
 def test_pr_log_all_includes_success_runs(monkeypatch, mock_transport):
     import httpx
     from click.testing import CliRunner
-    from forge.cli.main import cli
+
     from forge import logs
+    from forge.cli.main import cli
 
     pr_response = {
         "number": 5, "title": "x", "state": "open", "merged": False, "draft": False,
@@ -449,6 +466,7 @@ def test_pr_log_all_includes_success_runs(monkeypatch, mock_transport):
 def test_pr_log_no_matching_runs_exits_0_with_warning(monkeypatch, mock_transport):
     import httpx
     from click.testing import CliRunner
+
     from forge.cli.main import cli
 
     pr_response = {

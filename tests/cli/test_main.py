@@ -59,6 +59,7 @@ def test_debug_flag_threads_through_to_client(capsys, monkeypatch):
     """--debug at top level surfaces in client HTTP logging."""
     import httpx
     from click.testing import CliRunner
+
     from forge.cli.main import cli
 
     captured_clients = []

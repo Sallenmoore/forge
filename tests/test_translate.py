@@ -46,7 +46,7 @@ def test_json_field_names_returns_known_issue_fields():
 
 
 def test_run_to_gh_maps_all_run_fields():
-    from forge.translate import run_to_gh, JSON_FIELD_NAMES
+    from forge.translate import JSON_FIELD_NAMES, run_to_gh
 
     forgejo_run = {
         "id": 161,

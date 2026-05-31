@@ -1,6 +1,6 @@
-import httpx
 import json as _json
 
+import httpx
 from click.testing import CliRunner
 
 from forge.cli.main import cli
@@ -118,8 +118,9 @@ def test_run_list_limit_caps_at_50(monkeypatch, mock_transport):
 def test_run_log_dumps_decompressed_log(monkeypatch):
     """run log <id> --container forgejo prints decompressed log text."""
     from click.testing import CliRunner
-    from forge.cli.main import cli
+
     from forge import logs
+    from forge.cli.main import cli
 
     sample = "ts1 line 1\nts2 line 2\n"
     monkeypatch.setattr(logs, "fetch_log",
@@ -134,6 +135,7 @@ def test_run_log_dumps_decompressed_log(monkeypatch):
 
 def test_run_log_no_container_exits_6(monkeypatch):
     from click.testing import CliRunner
+
     from forge.cli.main import cli
     monkeypatch.delenv("FORGEJO_CONTAINER", raising=False)
     monkeypatch.setenv("FORGEJO_TOKEN", "tok")
@@ -146,8 +148,9 @@ def test_run_log_no_container_exits_6(monkeypatch):
 
 def test_run_log_env_var_picked_up(monkeypatch):
     from click.testing import CliRunner
-    from forge.cli.main import cli
+
     from forge import logs
+    from forge.cli.main import cli
 
     seen = {}
     def fake_fetch_log(*, container, owner, repo, task_id, **kwargs):
@@ -165,8 +168,9 @@ def test_run_log_env_var_picked_up(monkeypatch):
 
 def test_run_log_missing_file_exits_3(monkeypatch):
     from click.testing import CliRunner
-    from forge.cli.main import cli
+
     from forge import logs
+    from forge.cli.main import cli
     from forge.errors import NotFoundError
 
     def raiser(*, container, owner, repo, task_id, **kwargs):

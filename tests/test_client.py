@@ -113,7 +113,9 @@ def test_client_debug_logs_patch_body(capsys, mock_transport):
 
     seen = {}
     def handler(request):
-        import httpx, json as _json
+        import json as _json
+
+        import httpx
         seen["body"] = _json.loads(request.content)
         return httpx.Response(200, json={"state": "closed"})
 
