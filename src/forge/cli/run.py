@@ -91,3 +91,32 @@ def run_list(ctx, repo, branch, status, workflow, limit, json_fields):
             r["workflowId"], r["headBranch"], r["event"],
             r["displayTitle"],
         ]))
+
+
+@run.command("log")
+@click.argument("task_id", type=int, metavar="RUN-ID")
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--container", default=None,
+              help="Forgejo container name (or set FORGEJO_CONTAINER)")
+@click.pass_context
+def run_log(ctx, task_id, repo, container):
+    """Dump the on-disk log for a workflow run by its task ID.
+
+    Requires --container or FORGEJO_CONTAINER because Forgejo 11 exposes no
+    log API. Only failed runs retain logs on disk.
+    """
+    from forge import logs as _logs
+    container = container or os.environ.get("FORGEJO_CONTAINER")
+    spec = resolve_repo(
+        r_flag=repo or ctx.obj.get("repo"),
+        host=ctx.obj.get("host") or DEFAULT_HOST,
+        cwd=os.getcwd(),
+        env_default=os.environ.get("FORGEJO_DEFAULT_REPO"),
+    )
+    text = _logs.fetch_log(
+        container=container,
+        owner=spec.owner,
+        repo=spec.repo,
+        task_id=task_id,
+    )
+    click.echo(text, nl=False)

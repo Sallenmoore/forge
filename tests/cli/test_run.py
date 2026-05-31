@@ -113,3 +113,70 @@ def test_run_list_limit_caps_at_50(monkeypatch, mock_transport):
         cli, ["run", "list", "-R", "o/r", "--limit", "100"])
     assert result.exit_code == 0
     assert seen["params"]["limit"] == "50"
+
+
+def test_run_log_dumps_decompressed_log(monkeypatch):
+    """run log <id> --container forgejo prints decompressed log text."""
+    from click.testing import CliRunner
+    from forge.cli.main import cli
+    from forge import logs
+
+    sample = "ts1 line 1\nts2 line 2\n"
+    monkeypatch.setattr(logs, "fetch_log",
+                        lambda *, container, owner, repo, task_id, **kwargs: sample)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(
+        cli, ["run", "log", "120", "-R", "o/r", "--container", "forgejo"])
+    assert result.exit_code == 0, result.output
+    assert result.output == sample
+
+
+def test_run_log_no_container_exits_6(monkeypatch):
+    from click.testing import CliRunner
+    from forge.cli.main import cli
+    monkeypatch.delenv("FORGEJO_CONTAINER", raising=False)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(
+        cli, ["run", "log", "120", "-R", "o/r"])
+    assert result.exit_code == 6
+    assert "container exec" in result.output.lower()
+
+
+def test_run_log_env_var_picked_up(monkeypatch):
+    from click.testing import CliRunner
+    from forge.cli.main import cli
+    from forge import logs
+
+    seen = {}
+    def fake_fetch_log(*, container, owner, repo, task_id, **kwargs):
+        seen["container"] = container
+        return "ok\n"
+    monkeypatch.setattr(logs, "fetch_log", fake_fetch_log)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+    monkeypatch.setenv("FORGEJO_CONTAINER", "fj-env")
+
+    result = CliRunner().invoke(
+        cli, ["run", "log", "120", "-R", "o/r"])
+    assert result.exit_code == 0, result.output
+    assert seen["container"] == "fj-env"
+
+
+def test_run_log_missing_file_exits_3(monkeypatch):
+    from click.testing import CliRunner
+    from forge.cli.main import cli
+    from forge import logs
+    from forge.errors import NotFoundError
+
+    def raiser(*, container, owner, repo, task_id, **kwargs):
+        raise NotFoundError(
+            f"no log on disk for run {task_id} (probably succeeded — "
+            f"Forgejo only retains failed-run logs)")
+    monkeypatch.setattr(logs, "fetch_log", raiser)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(
+        cli, ["run", "log", "161", "-R", "o/r", "--container", "forgejo"])
+    assert result.exit_code == 3
+    assert "no log on disk" in result.output
