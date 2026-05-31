@@ -69,10 +69,12 @@ def cli(ctx, token, host, repo, debug):
 from forge.cli.auth import auth as _auth_group  # noqa: E402
 from forge.cli.issue import issue as _issue_group  # noqa: E402
 from forge.cli.pr import pr as _pr_group  # noqa: E402
+from forge.cli.run import run as _run_group  # noqa: E402
 
 cli.add_command(_auth_group)
 cli.add_command(_pr_group)
 cli.add_command(_issue_group)
+cli.add_command(_run_group)
 
 
 def main() -> int:
