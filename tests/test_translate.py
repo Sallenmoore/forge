@@ -43,3 +43,41 @@ def test_json_field_names_returns_known_issue_fields():
     assert "number" in names
     assert "body" in names
     assert names == tuple(ISSUE_FIELDS.keys())   # registry coupling, matches T7 pattern
+
+
+def test_run_to_gh_maps_all_run_fields():
+    from forge.translate import run_to_gh, JSON_FIELD_NAMES
+
+    forgejo_run = {
+        "id": 161,
+        "run_number": 17,
+        "name": "test (3.13)",
+        "display_title": "release: bump version to 0.1.1",
+        "head_branch": "v0.1.1",
+        "head_sha": "7637ea61f2877477a77330a91f3f5915532e3fca",
+        "status": "success",
+        "event": "push",
+        "url": "https://git.stevenamoore.dev/samoore/forge/actions/runs/17",
+        "created_at": "2026-05-26T18:48:21-04:00",
+        "run_started_at": "2026-05-26T18:48:21-04:00",
+        "updated_at": "2026-05-26T18:49:05-04:00",
+        "workflow_id": "test.yml",
+    }
+    out = run_to_gh(forgejo_run)
+    assert out == {
+        "id": 161,
+        "runNumber": 17,
+        "name": "test (3.13)",
+        "displayTitle": "release: bump version to 0.1.1",
+        "headBranch": "v0.1.1",
+        "headSha": "7637ea61f2877477a77330a91f3f5915532e3fca",
+        "status": "success",
+        "event": "push",
+        "url": "https://git.stevenamoore.dev/samoore/forge/actions/runs/17",
+        "createdAt": "2026-05-26T18:48:21-04:00",
+        "startedAt": "2026-05-26T18:48:21-04:00",
+        "updatedAt": "2026-05-26T18:49:05-04:00",
+        "workflowId": "test.yml",
+    }
+    assert "run" in JSON_FIELD_NAMES
+    assert "runNumber" in JSON_FIELD_NAMES["run"]

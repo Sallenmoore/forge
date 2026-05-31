@@ -69,3 +69,27 @@ def issue_to_gh(forgejo_issue: dict) -> dict:
 
 
 JSON_FIELD_NAMES["issue"] = tuple(ISSUE_FIELDS.keys())
+
+
+RUN_FIELDS: dict[str, str | Callable[[dict], Any]] = {
+    "id":           "id",
+    "runNumber":    "run_number",
+    "name":         "name",
+    "displayTitle": "display_title",
+    "headBranch":   "head_branch",
+    "headSha":      "head_sha",
+    "status":       "status",
+    "event":        "event",
+    "url":          "url",
+    "createdAt":    "created_at",
+    "startedAt":    "run_started_at",
+    "updatedAt":    "updated_at",
+    "workflowId":   "workflow_id",
+}
+
+
+def run_to_gh(forgejo_run: dict) -> dict:
+    return _translate(forgejo_run, RUN_FIELDS)
+
+
+JSON_FIELD_NAMES["run"] = tuple(RUN_FIELDS.keys())
