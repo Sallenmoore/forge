@@ -53,3 +53,36 @@ def test_main_handles_forge_error_with_label_and_exit_code(monkeypatch, capsys):
     finally:
         # Clean up so the _boom command doesn't leak to other tests
         del cli_group.commands["_boom"]
+
+
+def test_debug_flag_threads_through_to_client(capsys, monkeypatch):
+    """--debug at top level surfaces in client HTTP logging."""
+    import httpx
+    from click.testing import CliRunner
+    from forge.cli.main import cli
+
+    captured_clients = []
+
+    def fake_transport_factory():
+        def dispatch(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={
+                "number": 1, "title": "x", "state": "open", "merged": False,
+                "draft": False, "user": {"login": "u"},
+                "head": {"ref": "h", "sha": "s"}, "base": {"ref": "b"},
+                "created_at": "t", "html_url": "u", "labels": [],
+            })
+        return httpx.MockTransport(dispatch)
+
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        captured_clients.append(debug)
+        orig(self, host=host, token=token,
+             transport=fake_transport_factory(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "test-token")
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["--debug", "pr", "view", "1", "-R", "o/r"])
+    assert result.exit_code == 0, result.output
+    assert captured_clients == [True]

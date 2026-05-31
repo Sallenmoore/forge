@@ -13,9 +13,10 @@ FIXTURES = Path(__file__).parent.parent / "fixtures"
 def _patch_client(monkeypatch, mock_transport):
     from forge.client import ForgejoClient
 
-    def fake_build(token, host):
+    def fake_build(token, host, debug=False):
         return ForgejoClient(host=host or "https://git.stevenamoore.dev",
-                            token="t", transport=mock_transport.transport())
+                            token="t", transport=mock_transport.transport(),
+                            debug=debug)
     monkeypatch.setattr("forge.cli.pr._build_client", fake_build)
     monkeypatch.setenv("FORGEJO_TOKEN", "t")
 

@@ -8,10 +8,10 @@ from forge.client import DEFAULT_HOST, ForgejoClient, discover_token
 from forge.errors import AuthError
 
 
-def _build_client(token: str | None, host: str | None) -> ForgejoClient:
+def _build_client(token: str | None, host: str | None, debug: bool = False) -> ForgejoClient:
     resolved_token = discover_token(explicit=token, secrets_path=None)
     resolved_host = host or os.environ.get("FORGEJO_HOST") or DEFAULT_HOST
-    return ForgejoClient(host=resolved_host, token=resolved_token)
+    return ForgejoClient(host=resolved_host, token=resolved_token, debug=debug)
 
 
 @click.group()
@@ -23,7 +23,11 @@ def auth():
 @click.pass_context
 def auth_status(ctx):
     """Show the active token, instance URL, and authenticated user."""
-    client = _build_client(ctx.obj.get("token"), ctx.obj.get("host"))
+    client = _build_client(
+        ctx.obj.get("token"),
+        ctx.obj.get("host"),
+        debug=ctx.obj.get("debug", False),
+    )
     try:
         user = client.get("/user")
     finally:
@@ -55,7 +59,11 @@ def auth_git_credential(ctx, op):
         return  # store/erase are no-ops; tokens are out-of-band
     try:
         token = discover_token(explicit=ctx.obj.get("token"), secrets_path=None)
-        client = _build_client(ctx.obj.get("token"), ctx.obj.get("host"))
+        client = _build_client(
+            ctx.obj.get("token"),
+            ctx.obj.get("host"),
+            debug=ctx.obj.get("debug", False),
+        )
         try:
             user = client.get("/user")
         finally:

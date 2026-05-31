@@ -49,8 +49,7 @@ class _ForgeGroup(click.Group):
 @click.option("--host", default=None, help="Forgejo instance URL")
 @click.option("-R", "repo", default=None, help="owner/repo")
 @click.option("--debug", is_flag=True, default=False,
-              help=("Enable Python tracebacks on internal errors "
-                    "(HTTP request logging coming in v0.2)"))
+              help="Enable HTTP request logging and Python tracebacks on internal errors")
 @click.pass_context
 def cli(ctx, token, host, repo, debug):
     """gh-compatible CLI for self-hosted Forgejo."""

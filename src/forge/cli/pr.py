@@ -10,11 +10,12 @@ from forge.repo import resolve_repo
 from forge.translate import JSON_FIELD_NAMES, pr_to_gh
 
 
-def _build_client(token: str | None, host: str | None) -> ForgejoClient:
+def _build_client(token: str | None, host: str | None, debug: bool = False) -> ForgejoClient:
     resolved_host = host or os.environ.get("FORGEJO_HOST") or DEFAULT_HOST
     return ForgejoClient(
         host=resolved_host,
         token=discover_token(explicit=token, secrets_path=None),
+        debug=debug,
     )
 
 
@@ -25,7 +26,11 @@ def _resolve(ctx, repo_override: str | None = None):
         cwd=os.getcwd(),
         env_default=os.environ.get("FORGEJO_DEFAULT_REPO"),
     )
-    return _build_client(ctx.obj.get("token"), ctx.obj.get("host")), spec
+    return _build_client(
+        ctx.obj.get("token"),
+        ctx.obj.get("host"),
+        debug=ctx.obj.get("debug", False),
+    ), spec
 
 
 def _filter_json(rows: list[dict], fields_str: str) -> list[dict]:
