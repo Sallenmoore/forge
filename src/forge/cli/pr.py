@@ -233,3 +233,57 @@ def pr_edit(ctx, number, repo, title, body, base):
         client.close()
     fields = ", ".join(sorted(payload.keys()))
     click.echo(f"Edited PR #{number} ({fields})")
+
+
+@pr.command("log")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--container", default=None,
+              help="Forgejo container name (or set FORGEJO_CONTAINER)")
+@click.option("--failed-only/--no-failed-only", default=True,
+              help="Only fetch logs for failed runs (default true)")
+@click.pass_context
+def pr_log(ctx, number, repo, container, failed_only):
+    """Concatenated CI logs for the PR's head commit's runs.
+
+    Default: only failed runs (the common agentic-debug case). Use
+    --no-failed-only to include successful runs.
+    """
+    from forge import logs as _logs
+    from forge.errors import NotFoundError
+    container = container or os.environ.get("FORGEJO_CONTAINER")
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        pr_data = client.get(f"/repos/{spec.owner}/{spec.repo}/pulls/{number}")
+        head_sha = pr_data["head"]["sha"]
+        raw = client.get(
+            f"/repos/{spec.owner}/{spec.repo}/actions/tasks",
+            params={"limit": 50},
+        )
+    finally:
+        client.close()
+    all_runs = raw.get("workflow_runs", []) if isinstance(raw, dict) else []
+    matching = [r for r in all_runs if r.get("head_sha") == head_sha]
+    if failed_only:
+        matching = [r for r in matching if r.get("status") == "failure"]
+    if not matching:
+        click.echo(
+            f"no matching runs for PR #{number} head {head_sha[:7]}",
+            err=True,
+        )
+        return
+    for r in matching:
+        click.echo(
+            f"===== run #{r['run_number']} \"{r['name']}\" "
+            f"(id={r['id']}) status={r['status']} ====="
+        )
+        try:
+            text = _logs.fetch_log(
+                container=container,
+                owner=spec.owner,
+                repo=spec.repo,
+                task_id=r["id"],
+            )
+            click.echo(text, nl=False)
+        except NotFoundError as e:
+            click.echo(str(e))
