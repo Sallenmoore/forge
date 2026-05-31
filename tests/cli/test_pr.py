@@ -158,3 +158,80 @@ def test_pr_comment_posts_to_issues_endpoint(mock_transport, monkeypatch):
     assert result.exit_code == 0
     assert captured["path"] == "/api/v1/repos/samoore/forge/issues/7/comments"
     assert captured["body"] == {"body": "Looks good"}
+
+
+def test_pr_close_patches_state_closed(monkeypatch, mock_transport):
+    """pr close N → PATCH /repos/o/r/pulls/N {state: closed}."""
+    import httpx, json as _json
+    from click.testing import CliRunner
+    from forge.cli.main import cli
+
+    seen = {}
+    def handler(request):
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = _json.loads(request.content) if request.content else None
+        return httpx.Response(200, json={"number": 5, "state": "closed"})
+
+    mock_transport.handler = handler
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(cli, ["pr", "close", "5", "-R", "o/r"])
+    assert result.exit_code == 0, result.output
+    assert seen == {
+        "method": "PATCH",
+        "path": "/api/v1/repos/o/r/pulls/5",
+        "body": {"state": "closed"},
+    }
+    assert "Closed PR #5" in result.output
+
+
+def test_pr_reopen_patches_state_open(monkeypatch, mock_transport):
+    """pr reopen N → PATCH state=open."""
+    import httpx, json as _json
+    from click.testing import CliRunner
+    from forge.cli.main import cli
+
+    seen = {}
+    def handler(request):
+        seen["body"] = _json.loads(request.content) if request.content else None
+        return httpx.Response(200, json={"number": 5, "state": "open"})
+
+    mock_transport.handler = handler
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(cli, ["pr", "reopen", "5", "-R", "o/r"])
+    assert result.exit_code == 0, result.output
+    assert seen["body"] == {"state": "open"}
+    assert "Reopened PR #5" in result.output
+
+
+def test_pr_close_404_exits_3(monkeypatch, mock_transport):
+    import httpx
+    from click.testing import CliRunner
+    from forge.cli.main import cli
+
+    mock_transport.handler = lambda request: httpx.Response(404, json={"message": "not found"})
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(cli, ["pr", "close", "9999", "-R", "o/r"])
+    assert result.exit_code == 3
+    assert "not found" in result.output

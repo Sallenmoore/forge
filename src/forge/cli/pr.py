@@ -169,3 +169,37 @@ def pr_comment(ctx, number, repo, body):
     finally:
         client.close()
     click.echo(resp.get("html_url", "comment added"))
+
+
+@pr.command("close")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.pass_context
+def pr_close(ctx, number, repo):
+    """Close a PR."""
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        client.patch(
+            f"/repos/{spec.owner}/{spec.repo}/pulls/{number}",
+            json={"state": "closed"},
+        )
+    finally:
+        client.close()
+    click.echo(f"Closed PR #{number}")
+
+
+@pr.command("reopen")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.pass_context
+def pr_reopen(ctx, number, repo):
+    """Reopen a closed PR."""
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        client.patch(
+            f"/repos/{spec.owner}/{spec.repo}/pulls/{number}",
+            json={"state": "open"},
+        )
+    finally:
+        client.close()
+    click.echo(f"Reopened PR #{number}")
