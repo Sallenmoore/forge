@@ -1,11 +1,15 @@
 # forge — conventions
 
-## Known v0.1 limitations
+## Known v0.2 limitations
 
-- `--debug` flag enables Python tracebacks on internal errors but does NOT yet log httpx requests/responses to stderr. The full HTTP debug log is planned for v0.2. Help text and spec describe the intended end state.
-- `--no-retry` flag and `Retry-After` header handling not implemented (deferred to v0.2; self-hosted Forgejo rarely rate-limits).
-- Per-file `_build_client` / `_resolve` duplication in cli/pr.py and cli/issue.py. Extraction to cli/_common.py happens when divergence pressure justifies it (likely v0.2).
-- Live fixture-capture script (`tests/fixtures/capture.py`) deferred to v0.2; current fixtures are hand-crafted from Forgejo's documented response shapes.
+- No `forge run rerun` — Forgejo 11 exposes no rerun API. (Workaround: push an empty commit to retrigger.)
+- No `forge workflow run` (workflow_dispatch trigger). Deferred to v0.3.
+- No single-run view (`forge run view <id>`). Forgejo has no GET single-run endpoint; only the bulk `/actions/tasks` list works.
+- No `pr edit --add-label/--add-assignee/--milestone`. v0.2 supports only `--title/--body/--base`.
+- `--no-retry` flag and `Retry-After` header handling not implemented (deferred to v0.3; self-hosted Forgejo rarely rate-limits).
+- Per-file `_build_client` / `_resolve` duplication in cli/{auth,issue,pr,run}.py. Lift to cli/_common.py when divergence pressure justifies it.
+- Live fixture-capture script (`tests/fixtures/capture.py`) deferred to v0.3; current fixtures are hand-crafted from Forgejo's documented response shapes.
+- `forge pr log` always exits 0 once at least one matching run exists, even if every single log fetch raises NotFoundError. (Edge case unlikely in practice — Forgejo retains all failed-run logs.)
 
 ## Dependency direction (load-bearing)
 
@@ -41,6 +45,17 @@ Match blocks, Include directives, etc.
 If `ssh -G` fails (no ssh binary, no matching config), forge falls
 back to the literal alias name. The host-mismatch error still fires
 if the resolved name doesn't match the configured host.
+
+## Log access (v0.2)
+
+Forgejo 11.0.14 / Gitea-1.22 exposes no log endpoint in its REST API. `forge`
+reads logs from disk by `docker exec`-ing into the Forgejo container and
+catting `/data/gitea/actions_log/{owner}/{repo}/{id_hex}/{id}.log.zst`.
+
+- Requires `--container <name>` flag or `FORGEJO_CONTAINER` env var
+- Only failed runs retain logs (Forgejo cleans up successful ones on completion)
+- `id_hex = format(task_id, 'x')` — full lowercase hex of the task ID
+- See `src/forge/logs.py` for the path/decompression code
 
 ## Error classes
 
