@@ -235,3 +235,88 @@ def test_pr_close_404_exits_3(monkeypatch, mock_transport):
     result = CliRunner().invoke(cli, ["pr", "close", "9999", "-R", "o/r"])
     assert result.exit_code == 3
     assert "not found" in result.output
+
+
+def test_pr_edit_base_patches_base_field(monkeypatch, mock_transport):
+    """pr edit N --base X → PATCH /pulls/N {base: X}."""
+    import httpx, json as _json
+    from click.testing import CliRunner
+    from forge.cli.main import cli
+
+    seen = {}
+    def handler(request):
+        seen["body"] = _json.loads(request.content)
+        return httpx.Response(200, json={"number": 5, "base": {"ref": "test"}})
+
+    mock_transport.handler = handler
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(
+        cli, ["pr", "edit", "5", "-R", "o/r", "--base", "test"])
+    assert result.exit_code == 0, result.output
+    assert seen["body"] == {"base": "test"}
+    assert "Edited PR #5" in result.output
+
+
+def test_pr_edit_multiple_fields_sends_all(monkeypatch, mock_transport):
+    import httpx, json as _json
+    from click.testing import CliRunner
+    from forge.cli.main import cli
+
+    seen = {}
+    def handler(request):
+        seen["body"] = _json.loads(request.content)
+        return httpx.Response(200, json={"number": 5})
+
+    mock_transport.handler = handler
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(cli, [
+        "pr", "edit", "5", "-R", "o/r",
+        "--title", "new title", "--body", "new body", "--base", "main",
+    ])
+    assert result.exit_code == 0, result.output
+    assert seen["body"] == {"title": "new title", "body": "new body", "base": "main"}
+
+
+def test_pr_edit_no_fields_exits_2(monkeypatch):
+    from click.testing import CliRunner
+    from forge.cli.main import cli
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(cli, ["pr", "edit", "5", "-R", "o/r"])
+    assert result.exit_code == 2
+    assert "at least one of" in result.output.lower() or "no fields" in result.output.lower()
+
+
+def test_pr_edit_422_surfaces_validation_error(monkeypatch, mock_transport):
+    import httpx
+    from click.testing import CliRunner
+    from forge.cli.main import cli
+
+    mock_transport.handler = lambda request: httpx.Response(
+        422, json={"message": "branch does not exist"})
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(
+        cli, ["pr", "edit", "5", "-R", "o/r", "--base", "nonexistent"])
+    assert result.exit_code == 6
+    assert "branch does not exist" in result.output

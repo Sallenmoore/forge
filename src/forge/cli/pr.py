@@ -203,3 +203,33 @@ def pr_reopen(ctx, number, repo):
     finally:
         client.close()
     click.echo(f"Reopened PR #{number}")
+
+
+@pr.command("edit")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--title", default=None, help="New title")
+@click.option("--body", default=None, help="New body (markdown)")
+@click.option("--base", default=None, help="Retarget the base branch")
+@click.pass_context
+def pr_edit(ctx, number, repo, title, body, base):
+    """Edit a PR's title, body, or base branch."""
+    payload = {}
+    if title is not None:
+        payload["title"] = title
+    if body is not None:
+        payload["body"] = body
+    if base is not None:
+        payload["base"] = base
+    if not payload:
+        raise UsageError("pr edit: at least one of --title, --body, --base is required")
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        client.patch(
+            f"/repos/{spec.owner}/{spec.repo}/pulls/{number}",
+            json=payload,
+        )
+    finally:
+        client.close()
+    fields = ", ".join(sorted(payload.keys()))
+    click.echo(f"Edited PR #{number} ({fields})")
