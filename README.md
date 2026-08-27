@@ -1,6 +1,6 @@
 # forge
 
-`gh`-compatible CLI for the self-hosted Forgejo at `git.stevenamoore.dev`.
+`gh`-compatible CLI for the self-hosted Forgejo.
 
 ## Install
 
@@ -15,8 +15,8 @@ pipx ensurepath
 
 ```bash
 forge auth status
-forge pr list -R samoore/storyteller
-forge issue create -R samoore/storyteller --title "..." --body "..." --label bug
+forge pr list -R user/repo
+forge issue create -R user/repo --title "..." --body "..." --label bug
 ```
 
 ## Config
@@ -27,7 +27,7 @@ forge issue create -R samoore/storyteller --title "..." --body "..." --label bug
 2. `FORGEJO_TOKEN` env var
 3. `FORGEJO_API_KEY` line in `~/.secrets/forgejo.env`
 
-**Instance URL:** `--host <url>` → `FORGEJO_HOST` env → default `https://git.stevenamoore.dev`.
+**Instance URL:** `--host <url>` → `FORGEJO_HOST` env → default.
 
 **Repo resolution:** `-R owner/repo` → `git remote -v` (origin must point at the configured Forgejo) → `FORGEJO_DEFAULT_REPO` env.
 
