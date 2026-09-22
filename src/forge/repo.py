@@ -24,15 +24,19 @@ def resolve_repo(
     cwd: str,
     env_default: str | None,
 ) -> RepoSpec:
+    # Precedence mirrors gh: -R flag > FORGEJO_DEFAULT_REPO > origin remote.
+    # env_default must outrank the remote, not trail it: _from_git_remote
+    # raises on a host mismatch, so checking it first made the mismatch
+    # error's own "or set FORGEJO_DEFAULT_REPO" advice unreachable.
     if r_flag is not None:
         return _parse_owner_repo(r_flag)
+    if env_default:
+        return _parse_owner_repo(env_default)
     from_remote = _from_git_remote(Path(cwd), host)
     if from_remote is not None:
         return from_remote
-    if env_default:
-        return _parse_owner_repo(env_default)
     raise UsageError(
-        "repo: no -R flag, git remote, or FORGEJO_DEFAULT_REPO available"
+        "repo: no -R flag, FORGEJO_DEFAULT_REPO, or git remote available"
     )
 
 

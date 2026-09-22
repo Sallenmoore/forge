@@ -4,7 +4,7 @@
 
 - `--debug` flag enables Python tracebacks on internal errors but does NOT yet log httpx requests/responses to stderr. The full HTTP debug log is planned for v0.2. Help text and spec describe the intended end state.
 - `--no-retry` flag and `Retry-After` header handling not implemented (deferred to v0.2; self-hosted Forgejo rarely rate-limits).
-- Per-file `_build_client` / `_resolve` duplication in cli/pr.py and cli/issue.py. Extraction to cli/_common.py happens when divergence pressure justifies it (likely v0.2).
+- `_filter_json` is still duplicated in cli/pr.py and cli/issue.py. (`_build_client` / `_resolve` were extracted to cli/_common.py in v0.1.2 after the duplication caused a real bug — see "Shared CLI helpers".)
 - Live fixture-capture script (`tests/fixtures/capture.py`) deferred to v0.2; current fixtures are hand-crafted from Forgejo's documented response shapes.
 
 ## Dependency direction (load-bearing)
@@ -42,6 +42,14 @@ If `ssh -G` fails (no ssh binary, no matching config), forge falls
 back to the literal alias name. The host-mismatch error still fires
 if the resolved name doesn't match the configured host.
 
+Precedence is `-R` > `FORGEJO_DEFAULT_REPO` > origin remote, mirroring
+gh's `-R` > `GH_REPO` > remote. The env var must outrank the remote:
+the remote check *raises* on a host mismatch, so ranking it first made
+the mismatch error's own "or set FORGEJO_DEFAULT_REPO" advice
+unreachable. Consequence worth knowing — exporting
+`FORGEJO_DEFAULT_REPO` in a shell profile pins every invocation in
+every checkout, exactly as `GH_REPO` does.
+
 ## Error classes
 
 Six typed exceptions in `errors.py`, each with a static `code` class attribute mapping to exit codes 1-6:
@@ -61,6 +69,16 @@ Three rings: pure unit (no HTTP), mocked HTTP (`httpx.MockTransport` via the `mo
 
 The `env_no_token` fixture strips token-related env vars AND redirects `DEFAULT_SECRETS_PATH` to a non-existent tmp path, ensuring negative tests are hermetic.
 
-## Per-file CLI helpers
+## Shared CLI helpers
 
-`cli/pr.py` and `cli/issue.py` each have their own copies of `_build_client`, `_resolve`, and `_filter_json`. This duplication is intentional for v0.1 — extraction to `cli/_common.py` happens when divergence pressure justifies it (likely v0.2). Tests monkeypatch by module path (`forge.cli.pr._build_client`), so per-file copies are part of the test contract.
+`resolved_host`, `build_client` and `resolve` live in `cli/_common.py`, imported by
+`cli/pr.py` and `cli/issue.py`. They were per-file copies through v0.1.0; the copies
+drifted (`_build_client` consulted `FORGEJO_HOST`, `_resolve` did not), so the API
+client and the origin-host check could target different instances. One definition
+removes the class of bug — keep it that way.
+
+Tests monkeypatch `forge.cli._common.build_client`, not a per-module name.
+
+`_filter_json` is still duplicated per file. It is pure and has no environment
+coupling, so it cannot drift the way the client helpers did; extract it when a third
+consumer appears, not before.

@@ -16,7 +16,7 @@ def _patch_client(monkeypatch, mock_transport):
     def fake_build(token, host):
         return ForgejoClient(host=host or "https://git.stevenamoore.dev",
                             token="t", transport=mock_transport.transport())
-    monkeypatch.setattr("forge.cli.issue._build_client", fake_build)
+    monkeypatch.setattr("forge.cli._common.build_client", fake_build)
     monkeypatch.setenv("FORGEJO_TOKEN", "t")
 
 
@@ -122,3 +122,38 @@ def test_issue_comment_posts_to_comments_endpoint(mock_transport, monkeypatch):
     assert result.exit_code == 0
     assert captured["path"] == "/api/v1/repos/samoore/storyteller/issues/42/comments"
     assert captured["body"] == {"body": "ack"}
+
+
+def _make_git_repo(tmp_path, origin_url):
+    """Create a minimal git checkout whose origin remote is origin_url."""
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "config").write_text(
+        '[remote "origin"]\n'
+        f"\turl = {origin_url}\n"
+    )
+    return tmp_path
+
+
+def test_issue_view_resolves_repo_against_forgejo_host_env(
+    mock_transport, monkeypatch, tmp_path, env_no_token
+):
+    """FORGEJO_HOST must steer repo resolution, not just the API client.
+
+    Without --host, _resolve fell through to DEFAULT_HOST and rejected an
+    origin on the instance FORGEJO_HOST names.
+    """
+    _patch_client(monkeypatch, mock_transport)
+    monkeypatch.setenv("FORGEJO_HOST", "https://forgejo.example.com")
+    repo = _make_git_repo(
+        tmp_path, "https://forgejo.example.com/its-linux-team/unitory.git"
+    )
+    monkeypatch.chdir(repo)
+
+    forgejo_issue = json.loads((FIXTURES / "forgejo" / "issue.json").read_text())
+    mock_transport.handler = lambda r: httpx.Response(200, json=forgejo_issue)
+
+    result = CliRunner().invoke(cli, ["issue", "view", "42"])
+
+    assert result.exit_code == 0, result.output
+    assert "Something broke" in result.output
