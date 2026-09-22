@@ -4,7 +4,7 @@
 
 - `--debug` flag enables Python tracebacks on internal errors but does NOT yet log httpx requests/responses to stderr. The full HTTP debug log is planned for v0.2. Help text and spec describe the intended end state.
 - `--no-retry` flag and `Retry-After` header handling not implemented (deferred to v0.2; self-hosted Forgejo rarely rate-limits).
-- `_filter_json` is still duplicated in cli/pr.py and cli/issue.py. (`_build_client` / `_resolve` were extracted to cli/_common.py in v0.1.1 after the duplication caused a real bug — see "Shared CLI helpers".)
+- `_filter_json` is still duplicated in cli/pr.py and cli/issue.py. (`_build_client` / `_resolve` were extracted to cli/_common.py in v0.1.2 after the duplication caused a real bug — see "Shared CLI helpers".)
 - Live fixture-capture script (`tests/fixtures/capture.py`) deferred to v0.2; current fixtures are hand-crafted from Forgejo's documented response shapes.
 
 ## Dependency direction (load-bearing)
