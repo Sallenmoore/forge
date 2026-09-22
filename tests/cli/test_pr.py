@@ -157,3 +157,34 @@ def test_pr_comment_posts_to_issues_endpoint(mock_transport, monkeypatch):
     assert result.exit_code == 0
     assert captured["path"] == "/api/v1/repos/samoore/forge/issues/7/comments"
     assert captured["body"] == {"body": "Looks good"}
+
+
+def _make_git_repo(tmp_path, origin_url):
+    """Create a minimal git checkout whose origin remote is origin_url."""
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "config").write_text(
+        '[remote "origin"]\n'
+        f"\turl = {origin_url}\n"
+    )
+    return tmp_path
+
+
+def test_pr_view_resolves_repo_against_forgejo_host_env(
+    mock_transport, monkeypatch, tmp_path, env_no_token
+):
+    """FORGEJO_HOST must steer repo resolution, not just the API client."""
+    _patch_client(monkeypatch, mock_transport)
+    monkeypatch.setenv("FORGEJO_HOST", "https://forgejo.example.com")
+    repo = _make_git_repo(
+        tmp_path, "https://forgejo.example.com/its-linux-team/unitory.git"
+    )
+    monkeypatch.chdir(repo)
+
+    forgejo_pr = json.loads((FIXTURES / "forgejo" / "pr.json").read_text())
+    mock_transport.handler = lambda r: httpx.Response(200, json=forgejo_pr)
+
+    result = CliRunner().invoke(cli, ["pr", "view", "7"])
+
+    assert result.exit_code == 0, result.output
+    assert "Add forge CLI" in result.output

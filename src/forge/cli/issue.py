@@ -10,8 +10,19 @@ from forge.repo import resolve_repo
 from forge.translate import JSON_FIELD_NAMES, issue_to_gh
 
 
+def _resolved_host(host: str | None) -> str:
+    """Single source of truth for which Forgejo instance this invocation targets.
+
+    Both the API client and repo resolution must agree; when they did not,
+    --host steered one and DEFAULT_HOST the other, so FORGEJO_HOST
+    authenticated against one instance while the origin check ran against
+    another.
+    """
+    return host or os.environ.get("FORGEJO_HOST") or DEFAULT_HOST
+
+
 def _build_client(token: str | None, host: str | None) -> ForgejoClient:
-    resolved_host = host or os.environ.get("FORGEJO_HOST") or DEFAULT_HOST
+    resolved_host = _resolved_host(host)
     return ForgejoClient(
         host=resolved_host,
         token=discover_token(explicit=token, secrets_path=None),
@@ -21,7 +32,7 @@ def _build_client(token: str | None, host: str | None) -> ForgejoClient:
 def _resolve(ctx, repo_override=None):
     spec = resolve_repo(
         r_flag=repo_override or ctx.obj.get("repo"),
-        host=ctx.obj.get("host") or DEFAULT_HOST,
+        host=_resolved_host(ctx.obj.get("host")),
         cwd=os.getcwd(),
         env_default=os.environ.get("FORGEJO_DEFAULT_REPO"),
     )
