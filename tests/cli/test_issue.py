@@ -16,7 +16,7 @@ def _patch_client(monkeypatch, mock_transport):
     def fake_build(token, host):
         return ForgejoClient(host=host or "https://git.stevenamoore.dev",
                             token="t", transport=mock_transport.transport())
-    monkeypatch.setattr("forge.cli.issue._build_client", fake_build)
+    monkeypatch.setattr("forge.cli._common.build_client", fake_build)
     monkeypatch.setenv("FORGEJO_TOKEN", "t")
 
 

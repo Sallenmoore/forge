@@ -1,42 +1,11 @@
 # src/forge/cli/pr.py
 import json as json_module
-import os
 
 import click
 
-from forge.client import DEFAULT_HOST, ForgejoClient, discover_token
+from forge.cli._common import resolve as _resolve
 from forge.errors import UsageError
-from forge.repo import resolve_repo
 from forge.translate import JSON_FIELD_NAMES, pr_to_gh
-
-
-def _resolved_host(host: str | None) -> str:
-    """Single source of truth for which Forgejo instance this invocation targets.
-
-    Both the API client and repo resolution must agree; when they did not,
-    --host steered one and DEFAULT_HOST the other, so FORGEJO_HOST
-    authenticated against one instance while the origin check ran against
-    another.
-    """
-    return host or os.environ.get("FORGEJO_HOST") or DEFAULT_HOST
-
-
-def _build_client(token: str | None, host: str | None) -> ForgejoClient:
-    resolved_host = _resolved_host(host)
-    return ForgejoClient(
-        host=resolved_host,
-        token=discover_token(explicit=token, secrets_path=None),
-    )
-
-
-def _resolve(ctx, repo_override: str | None = None):
-    spec = resolve_repo(
-        r_flag=repo_override or ctx.obj.get("repo"),
-        host=_resolved_host(ctx.obj.get("host")),
-        cwd=os.getcwd(),
-        env_default=os.environ.get("FORGEJO_DEFAULT_REPO"),
-    )
-    return _build_client(ctx.obj.get("token"), ctx.obj.get("host")), spec
 
 
 def _filter_json(rows: list[dict], fields_str: str) -> list[dict]:
@@ -130,6 +99,11 @@ def pr_create(ctx, repo, title, body, base, head):
 @click.pass_context
 def pr_merge(ctx, number, repo, method):
     """Merge a PR (uses Forgejo's capital-D `Do` field)."""
+    # Click 8.3 does not honor default=True across a group of options that
+    # share one name: --squash comes first in .params with an UNSET default
+    # and wins, so an invocation with no method flag arrives here as None and
+    # would POST {"Do": null}. Normalize rather than reshape the CLI surface.
+    method = method or "merge"
     client, spec = _resolve(ctx, repo_override=repo)
     try:
         client.post(

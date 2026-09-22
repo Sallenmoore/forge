@@ -191,3 +191,34 @@ def test_https_url_does_NOT_invoke_ssh_minus_G(tmp_path, monkeypatch):
                         cwd=str(tmp_path), env_default=None)
     assert spec == RepoSpec(owner="samoore", repo="storyteller")
     assert called == []  # ssh -G must not have been called
+
+
+def test_env_default_takes_precedence_over_git_remote(tmp_path):
+    """FORGEJO_DEFAULT_REPO outranks the origin remote, as GH_REPO does in gh.
+
+    Precedence is -R > FORGEJO_DEFAULT_REPO > origin remote.
+    """
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "config").write_text(
+        '[remote "origin"]\n'
+        '\turl = https://git.stevenamoore.dev/samoore/forge.git\n'
+    )
+    spec = resolve_repo(r_flag=None, host="https://git.stevenamoore.dev",
+                        cwd=str(tmp_path), env_default="other/project")
+    assert spec == RepoSpec(owner="other", repo="project")
+
+
+def test_env_default_rescues_a_host_mismatch(tmp_path):
+    """The host-mismatch error advises setting FORGEJO_DEFAULT_REPO.
+
+    That advice must actually work: with it set, a remote on a foreign host
+    resolves instead of raising.
+    """
+    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git" / "config").write_text(
+        '[remote "origin"]\n'
+        '\turl = https://github.com/samoore/storyteller.git\n'
+    )
+    spec = resolve_repo(r_flag=None, host="https://git.stevenamoore.dev",
+                        cwd=str(tmp_path), env_default="samoore/forge")
+    assert spec == RepoSpec(owner="samoore", repo="forge")
