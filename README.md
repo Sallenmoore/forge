@@ -39,6 +39,7 @@ forge issue create -R user/repo --title "..." --body "..." --label bug
 | `pr` | `list`, `view`, `create`, `merge`, `checks`, `comment`, `close`, `reopen`, `edit`, `log` |
 | `issue` | `list`, `view`, `create`, `close`, `comment` |
 | `run` | `list`, `log`, `view` (`cancel`/`rerun` point at the web UI) |
+| `release` | `create` (with gh's `--generate-notes`, built client-side) |
 
 See [.github_compat_table.md](./.github_compat_table.md) for the full `gh` → `forge` mapping.
 

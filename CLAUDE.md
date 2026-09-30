@@ -7,7 +7,7 @@
 - No `pr edit --add-label/--add-assignee/--milestone`. v0.2 supports only `--title/--body/--base`.
 - `--no-retry` flag and `Retry-After` header handling not implemented (deferred to v0.3; self-hosted Forgejo rarely rate-limits).
 - Live fixture-capture script (`tests/fixtures/capture.py`) deferred to v0.3; current fixtures are hand-crafted from Forgejo's documented response shapes.
-- `forge pr log` always exits 0 once at least one matching run exists, even if every single log fetch raises NotFoundError. (Edge case unlikely in practice — Forgejo retains all failed-run logs.)
+- `forge pr log` always exits 0 once at least one matching run exists, even if every single log fetch raises NotFoundError. (Edge case unlikely in practice — Forgejo retains task logs.)
 
 ## Dependency direction (load-bearing)
 
@@ -57,13 +57,30 @@ every checkout, exactly as `GH_REPO` does.
 
 Forgejo's REST API has no log endpoint (11.0.14, and still none in 14.0.5). `forge`
 reads logs from disk by `docker exec`-ing into the Forgejo container and
-catting `/data/gitea/actions_log/{owner}/{repo}/{id_hex}/{id}.log.zst`.
+catting `/data/gitea/actions_log/{owner}/{repo}/{shard}/{id}.log.zst`.
 
 - Requires `--container <name>` flag or `FORGEJO_CONTAINER` env var
-- Only failed runs retain logs (Forgejo cleans up successful ones on completion)
-- `id_hex = format(task_id, 'x')` — full lowercase hex of the task ID
-- The on-disk path was verified on 11.0.14 only; re-check it after a Forgejo major upgrade
+- `shard = f"{task_id % 256:02x}"` — the task id's low byte, zero-padded (292 → `24`).
+  Through v0.2.0 this was `format(task_id, 'x')`, the full hex, which happens to agree
+  for ids 16–255 only; every task from 256 up reported "not found". Verified against all
+  196 log files on the 14.0.5 instance, 2026-09-30.
+- Logs are kept for **successful** tasks too — the earlier "only failed runs retain logs"
+  note was a misreading of the path bug above. A miss usually means a run number was
+  passed where a task id belongs (`run list`'s first column is the task id).
+- Re-check the path after a Forgejo major upgrade
 - See `src/forge/logs.py` for the path/decompression code
+
+## Release notes
+
+`release create --generate-notes` has no Forgejo endpoint to call (none through 14.0.5),
+so `release_notes.py` rebuilds GitHub's rule client-side: a PR is in a release when its
+`merge_commit_sha` lies in the release's commit range — `compare/{prev}...{tag}`, or the
+whole history under the tag for a first release. Not by merge date: that misfiles PRs
+merged into other branches. The previous release is the newest published one other than
+the tag being created. Only PRs appear; commits pushed straight to the branch don't.
+
+`ForgejoClient.paginate` stops on the first *empty* page, not the first short one, so a
+server whose max page size is below the requested `limit` can't silently truncate.
 
 ## Error classes
 

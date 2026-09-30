@@ -174,9 +174,7 @@ def test_run_log_missing_file_exits_3(monkeypatch):
     from forge.errors import NotFoundError
 
     def raiser(*, container, owner, repo, task_id, **kwargs):
-        raise NotFoundError(
-            f"no log on disk for run {task_id} (probably succeeded — "
-            f"Forgejo only retains failed-run logs)")
+        raise NotFoundError(f"no log on disk for task {task_id}")
     monkeypatch.setattr(logs, "fetch_log", raiser)
     monkeypatch.setenv("FORGEJO_TOKEN", "tok")
 

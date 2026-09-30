@@ -120,3 +120,17 @@ class ForgejoClient:
 
     def patch(self, path: str, json: dict | None = None, **kwargs) -> dict | list | None:
         return self._request("PATCH", path, json=json, **kwargs)
+
+    def paginate(self, path: str, params: dict | None = None, *, limit: int = 50):
+        """Yield every row of a paged list endpoint.
+
+        Stops on the first *empty* page, not the first short one: a server whose
+        max page size is below `limit` returns short pages that aren't the last.
+        """
+        page = 1
+        while True:
+            rows = self.get(path, params={**(params or {}), "limit": limit, "page": page})
+            if not rows:
+                return
+            yield from rows
+            page += 1
