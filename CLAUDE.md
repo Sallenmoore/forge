@@ -70,6 +70,18 @@ catting `/data/gitea/actions_log/{owner}/{repo}/{shard}/{id}.log.zst`.
 - Re-check the path after a Forgejo major upgrade
 - See `src/forge/logs.py` for the path/decompression code
 
+## Release notes
+
+`release create --generate-notes` has no Forgejo endpoint to call (none through 14.0.5),
+so `release_notes.py` rebuilds GitHub's rule client-side: a PR is in a release when its
+`merge_commit_sha` lies in the release's commit range — `compare/{prev}...{tag}`, or the
+whole history under the tag for a first release. Not by merge date: that misfiles PRs
+merged into other branches. The previous release is the newest published one other than
+the tag being created. Only PRs appear; commits pushed straight to the branch don't.
+
+`ForgejoClient.paginate` stops on the first *empty* page, not the first short one, so a
+server whose max page size is below the requested `limit` can't silently truncate.
+
 ## Error classes
 
 Six typed exceptions in `errors.py`, each with a static `code` class attribute mapping to exit codes 1-6:
