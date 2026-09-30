@@ -83,3 +83,10 @@ def test_4xx_not_retried(mock_transport):
     with pytest.raises(NotFoundError):
         client.get("/anything")
     assert len(calls) == 1
+
+
+def test_default_host_is_the_live_instance(env_no_token):
+    # git.stevenamoore.dev was retired; an unset FORGEJO_HOST must not target it (#6).
+    from forge.cli._common import resolved_host
+
+    assert resolved_host(None) == "https://forgejo.bu-its.binghamton.edu"

@@ -8,7 +8,7 @@ import httpx
 
 from forge.errors import AuthError, ForgeError, NotFoundError, ServerError, ValidationError
 
-DEFAULT_HOST = "https://git.stevenamoore.dev"
+DEFAULT_HOST = "https://forgejo.bu-its.binghamton.edu"
 DEFAULT_SECRETS_PATH = Path.home() / ".secrets" / "forgejo.env"
 
 
