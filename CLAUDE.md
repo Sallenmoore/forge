@@ -1,11 +1,14 @@
 # forge — conventions
 
-## Known v0.1 limitations
+## Known v0.2 limitations
 
-- `--debug` flag enables Python tracebacks on internal errors but does NOT yet log httpx requests/responses to stderr. The full HTTP debug log is planned for v0.2. Help text and spec describe the intended end state.
-- `--no-retry` flag and `Retry-After` header handling not implemented (deferred to v0.2; self-hosted Forgejo rarely rate-limits).
-- `_filter_json` is still duplicated in cli/pr.py and cli/issue.py. (`_build_client` / `_resolve` were extracted to cli/_common.py in v0.1.2 after the duplication caused a real bug — see "Shared CLI helpers".)
-- Live fixture-capture script (`tests/fixtures/capture.py`) deferred to v0.2; current fixtures are hand-crafted from Forgejo's documented response shapes.
+- No `forge run cancel` / `forge run rerun` — Forgejo's REST API has neither (checked against the 14.0.5 swagger); both exist only as web-UI routes. Tracked in #3.
+- No `forge run view <id>` yet. Forgejo 11 had no single-run endpoint; 14.x has `GET /repos/{o}/{r}/actions/runs/{id}`. Tracked in #3.
+- No `forge workflow run` (workflow_dispatch trigger). Deferred to v0.3.
+- No `pr edit --add-label/--add-assignee/--milestone`. v0.2 supports only `--title/--body/--base`.
+- `--no-retry` flag and `Retry-After` header handling not implemented (deferred to v0.3; self-hosted Forgejo rarely rate-limits).
+- Live fixture-capture script (`tests/fixtures/capture.py`) deferred to v0.3; current fixtures are hand-crafted from Forgejo's documented response shapes.
+- `forge pr log` always exits 0 once at least one matching run exists, even if every single log fetch raises NotFoundError. (Edge case unlikely in practice — Forgejo retains all failed-run logs.)
 
 ## Dependency direction (load-bearing)
 
@@ -50,6 +53,18 @@ unreachable. Consequence worth knowing — exporting
 `FORGEJO_DEFAULT_REPO` in a shell profile pins every invocation in
 every checkout, exactly as `GH_REPO` does.
 
+## Log access (v0.2)
+
+Forgejo's REST API has no log endpoint (11.0.14, and still none in 14.0.5). `forge`
+reads logs from disk by `docker exec`-ing into the Forgejo container and
+catting `/data/gitea/actions_log/{owner}/{repo}/{id_hex}/{id}.log.zst`.
+
+- Requires `--container <name>` flag or `FORGEJO_CONTAINER` env var
+- Only failed runs retain logs (Forgejo cleans up successful ones on completion)
+- `id_hex = format(task_id, 'x')` — full lowercase hex of the task ID
+- The on-disk path was verified on 11.0.14 only; re-check it after a Forgejo major upgrade
+- See `src/forge/logs.py` for the path/decompression code
+
 ## Error classes
 
 Six typed exceptions in `errors.py`, each with a static `code` class attribute mapping to exit codes 1-6:
@@ -65,20 +80,25 @@ To add a new error category, inherit directly from `ForgeError`, never from a si
 
 ## Tests
 
-Three rings: pure unit (no HTTP), mocked HTTP (`httpx.MockTransport` via the `mock_transport` fixture in `conftest.py`), opt-in live tests (`tests/live/`, gated by `FORGE_LIVE_TESTS=1`). CI runs the first two. The fixture-capture script is deferred to v0.2.
+Three rings: pure unit (no HTTP), mocked HTTP (`httpx.MockTransport` via the `mock_transport` fixture in `conftest.py`), opt-in live tests (`tests/live/`, gated by `FORGE_LIVE_TESTS=1`). CI runs the first two. The fixture-capture script is deferred to v0.3.
 
 The `env_no_token` fixture strips token-related env vars AND redirects `DEFAULT_SECRETS_PATH` to a non-existent tmp path, ensuring negative tests are hermetic.
 
 ## Shared CLI helpers
 
-`resolved_host`, `build_client` and `resolve` live in `cli/_common.py`, imported by
-`cli/pr.py` and `cli/issue.py`. They were per-file copies through v0.1.0; the copies
+`resolved_host`, `build_client`, `resolve_spec` and `resolve` live in `cli/_common.py`,
+imported by `cli/pr.py`, `cli/issue.py` and `cli/run.py`. They were per-file copies through v0.1.0; the copies
 drifted (`_build_client` consulted `FORGEJO_HOST`, `_resolve` did not), so the API
 client and the origin-host check could target different instances. One definition
 removes the class of bug — keep it that way.
 
 Tests monkeypatch `forge.cli._common.build_client`, not a per-module name.
 
-`_filter_json` is still duplicated per file. It is pure and has no environment
-coupling, so it cannot drift the way the client helpers did; extract it when a third
-consumer appears, not before.
+`filter_json` / `requested_fields` joined them in v0.2, when `cli/run.py` became the
+third consumer. `feat/v0.2` was written before the v0.1.2 extraction and carried fresh
+per-file copies of all three helpers into `run.py` — including the original
+`FORGEJO_HOST` drift bug in `run log`. When landing an old branch, grep it for
+`resolve_repo(` and `DEFAULT_HOST` outside `_common.py`.
+
+`cli/auth.py` keeps its own `_build_client`: it has no repo-resolution half to drift
+against, and its tests patch it by that name.

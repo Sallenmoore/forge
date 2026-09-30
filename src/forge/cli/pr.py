@@ -1,20 +1,13 @@
 # src/forge/cli/pr.py
 import json as json_module
+import os
 
 import click
 
+from forge.cli._common import filter_json
 from forge.cli._common import resolve as _resolve
 from forge.errors import UsageError
-from forge.translate import JSON_FIELD_NAMES, pr_to_gh
-
-
-def _filter_json(rows: list[dict], fields_str: str) -> list[dict]:
-    requested = [f.strip() for f in fields_str.split(",") if f.strip()]
-    known = JSON_FIELD_NAMES["pr"]
-    for f in requested:
-        if f not in known:
-            raise UsageError(f"unknown field: {f} — available: {','.join(known)}")
-    return [{f: row[f] for f in requested} for row in rows]
+from forge.translate import pr_to_gh
 
 
 @click.group()
@@ -38,7 +31,7 @@ def pr_list(ctx, repo, state, json_fields):
         client.close()
     rows = [pr_to_gh(p) for p in raw]
     if json_fields:
-        click.echo(json_module.dumps(_filter_json(rows, json_fields)))
+        click.echo(json_module.dumps(filter_json(rows, json_fields, "pr")))
         return
     for r in rows:
         click.echo("\t".join([
@@ -61,7 +54,7 @@ def pr_view(ctx, number, repo, json_fields):
         client.close()
     translated = pr_to_gh(raw)
     if json_fields:
-        click.echo(json_module.dumps(_filter_json([translated], json_fields)[0]))
+        click.echo(json_module.dumps(filter_json([translated], json_fields, "pr")[0]))
         return
     click.echo(f"#{translated['number']} {translated['title']}")
     click.echo(f"State:   {translated['state']}")
@@ -149,3 +142,121 @@ def pr_comment(ctx, number, repo, body):
     finally:
         client.close()
     click.echo(resp.get("html_url", "comment added"))
+
+
+@pr.command("close")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.pass_context
+def pr_close(ctx, number, repo):
+    """Close a PR."""
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        client.patch(
+            f"/repos/{spec.owner}/{spec.repo}/pulls/{number}",
+            json={"state": "closed"},
+        )
+    finally:
+        client.close()
+    click.echo(f"Closed PR #{number}")
+
+
+@pr.command("reopen")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.pass_context
+def pr_reopen(ctx, number, repo):
+    """Reopen a closed PR."""
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        client.patch(
+            f"/repos/{spec.owner}/{spec.repo}/pulls/{number}",
+            json={"state": "open"},
+        )
+    finally:
+        client.close()
+    click.echo(f"Reopened PR #{number}")
+
+
+@pr.command("edit")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--title", default=None, help="New title")
+@click.option("--body", default=None, help="New body (markdown)")
+@click.option("--base", default=None, help="Retarget the base branch")
+@click.pass_context
+def pr_edit(ctx, number, repo, title, body, base):
+    """Edit a PR's title, body, or base branch."""
+    payload = {}
+    if title is not None:
+        payload["title"] = title
+    if body is not None:
+        payload["body"] = body
+    if base is not None:
+        payload["base"] = base
+    if not payload:
+        raise UsageError("pr edit: at least one of --title, --body, --base is required")
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        client.patch(
+            f"/repos/{spec.owner}/{spec.repo}/pulls/{number}",
+            json=payload,
+        )
+    finally:
+        client.close()
+    fields = ", ".join(sorted(payload.keys()))
+    click.echo(f"Edited PR #{number} ({fields})")
+
+
+@pr.command("log")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--container", default=None,
+              help="Forgejo container name (or set FORGEJO_CONTAINER)")
+@click.option("--failed-only/--no-failed-only", default=True,
+              help="Only fetch logs for failed runs (default true)")
+@click.pass_context
+def pr_log(ctx, number, repo, container, failed_only):
+    """Concatenated CI logs for the PR's head commit's runs.
+
+    Default: only failed runs (the common agentic-debug case). Use
+    --no-failed-only to include successful runs.
+    """
+    from forge import logs as _logs
+    from forge.errors import NotFoundError
+    container = container or os.environ.get("FORGEJO_CONTAINER")
+    client, spec = _resolve(ctx, repo_override=repo)
+    try:
+        pr_data = client.get(f"/repos/{spec.owner}/{spec.repo}/pulls/{number}")
+        head_sha = pr_data["head"]["sha"]
+        raw = client.get(
+            f"/repos/{spec.owner}/{spec.repo}/actions/tasks",
+            params={"limit": 50},
+        )
+    finally:
+        client.close()
+    all_runs = raw.get("workflow_runs", []) if isinstance(raw, dict) else []
+    matching = [r for r in all_runs if r.get("head_sha") == head_sha]
+    if failed_only:
+        matching = [r for r in matching if r.get("status") == "failure"]
+    if not matching:
+        click.echo(
+            f"no matching runs for PR #{number} head {head_sha[:7]}",
+            err=True,
+        )
+        return
+    for r in matching:
+        click.echo(
+            f"===== run #{r['run_number']} \"{r['name']}\" "
+            f"(id={r['id']}) status={r['status']} ====="
+        )
+        try:
+            text = _logs.fetch_log(
+                container=container,
+                owner=spec.owner,
+                repo=spec.repo,
+                task_id=r["id"],
+            )
+            click.echo(text, nl=False)
+        except NotFoundError as e:
+            click.echo(str(e))

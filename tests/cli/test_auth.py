@@ -16,7 +16,7 @@ def test_auth_status_success(mock_transport, monkeypatch):
     monkeypatch.setenv("FORGEJO_TOKEN", "t")
     monkeypatch.setattr(
         "forge.cli.auth._build_client",
-        lambda token, host: _stub_client(mock_transport, host)
+        lambda token, host, debug=False: _stub_client(mock_transport, host)
     )
     def handler(r):
         assert r.url.path == "/api/v1/user"
@@ -32,7 +32,7 @@ def test_auth_status_401_exits_4(mock_transport, monkeypatch):
     monkeypatch.setenv("FORGEJO_TOKEN", "bad")
     monkeypatch.setattr(
         "forge.cli.auth._build_client",
-        lambda token, host: _stub_client(mock_transport, host)
+        lambda token, host, debug=False: _stub_client(mock_transport, host)
     )
     mock_transport.handler = lambda r: httpx.Response(401, json={"message": "token rejected"})
     result = CliRunner().invoke(cli, ["auth", "status"])
@@ -121,7 +121,7 @@ def test_auth_git_credential_get_prints_protocol(mock_transport, monkeypatch):
     monkeypatch.setenv("FORGEJO_TOKEN", "t-from-env")
     monkeypatch.setattr(
         "forge.cli.auth._build_client",
-        lambda token, host: _stub_client(mock_transport, host)
+        lambda token, host, debug=False: _stub_client(mock_transport, host)
     )
     mock_transport.handler = lambda r: httpx.Response(200, json={"login": "samoore"})
     result = CliRunner().invoke(
