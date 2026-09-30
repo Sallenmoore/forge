@@ -49,8 +49,7 @@ class _ForgeGroup(click.Group):
 @click.option("--host", default=None, help="Forgejo instance URL")
 @click.option("-R", "repo", default=None, help="owner/repo")
 @click.option("--debug", is_flag=True, default=False,
-              help=("Enable Python tracebacks on internal errors "
-                    "(HTTP request logging coming in v0.2)"))
+              help="Enable HTTP request logging and Python tracebacks on internal errors")
 @click.pass_context
 def cli(ctx, token, host, repo, debug):
     """gh-compatible CLI for self-hosted Forgejo."""
@@ -70,10 +69,12 @@ def cli(ctx, token, host, repo, debug):
 from forge.cli.auth import auth as _auth_group  # noqa: E402
 from forge.cli.issue import issue as _issue_group  # noqa: E402
 from forge.cli.pr import pr as _pr_group  # noqa: E402
+from forge.cli.run import run as _run_group  # noqa: E402
 
 cli.add_command(_auth_group)
 cli.add_command(_pr_group)
 cli.add_command(_issue_group)
+cli.add_command(_run_group)
 
 
 def main() -> int:

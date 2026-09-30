@@ -63,3 +63,41 @@ def test_issue_view_fields_extend_issue_fields_with_comments():
     # `issue list` must keep rejecting it.
     assert JSON_FIELD_NAMES["issue_view"] == (*ISSUE_FIELDS.keys(), "comments")
     assert "comments" not in JSON_FIELD_NAMES["issue"]
+
+
+def test_run_to_gh_maps_all_run_fields():
+    from forge.translate import JSON_FIELD_NAMES, run_to_gh
+
+    forgejo_run = {
+        "id": 161,
+        "run_number": 17,
+        "name": "test (3.13)",
+        "display_title": "release: bump version to 0.1.1",
+        "head_branch": "v0.1.1",
+        "head_sha": "7637ea61f2877477a77330a91f3f5915532e3fca",
+        "status": "success",
+        "event": "push",
+        "url": "https://git.stevenamoore.dev/samoore/forge/actions/runs/17",
+        "created_at": "2026-05-26T18:48:21-04:00",
+        "run_started_at": "2026-05-26T18:48:21-04:00",
+        "updated_at": "2026-05-26T18:49:05-04:00",
+        "workflow_id": "test.yml",
+    }
+    out = run_to_gh(forgejo_run)
+    assert out == {
+        "id": 161,
+        "runNumber": 17,
+        "name": "test (3.13)",
+        "displayTitle": "release: bump version to 0.1.1",
+        "headBranch": "v0.1.1",
+        "headSha": "7637ea61f2877477a77330a91f3f5915532e3fca",
+        "status": "success",
+        "event": "push",
+        "url": "https://git.stevenamoore.dev/samoore/forge/actions/runs/17",
+        "createdAt": "2026-05-26T18:48:21-04:00",
+        "startedAt": "2026-05-26T18:48:21-04:00",
+        "updatedAt": "2026-05-26T18:49:05-04:00",
+        "workflowId": "test.yml",
+    }
+    assert "run" in JSON_FIELD_NAMES
+    assert "runNumber" in JSON_FIELD_NAMES["run"]

@@ -13,9 +13,10 @@ FIXTURES = Path(__file__).parent.parent / "fixtures"
 def _patch_client(monkeypatch, mock_transport):
     from forge.client import ForgejoClient
 
-    def fake_build(token, host):
+    def fake_build(token, host, debug=False):
         return ForgejoClient(host=host or "https://git.stevenamoore.dev",
-                            token="t", transport=mock_transport.transport())
+                            token="t", transport=mock_transport.transport(),
+                            debug=debug)
     monkeypatch.setattr("forge.cli._common.build_client", fake_build)
     monkeypatch.setenv("FORGEJO_TOKEN", "t")
 
@@ -188,3 +189,338 @@ def test_pr_view_resolves_repo_against_forgejo_host_env(
 
     assert result.exit_code == 0, result.output
     assert "Add forge CLI" in result.output
+
+
+def test_pr_close_patches_state_closed(monkeypatch, mock_transport):
+    """pr close N → PATCH /repos/o/r/pulls/N {state: closed}."""
+    import json as _json
+
+    import httpx
+    from click.testing import CliRunner
+
+    from forge.cli.main import cli
+
+    seen = {}
+    def handler(request):
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = _json.loads(request.content) if request.content else None
+        return httpx.Response(200, json={"number": 5, "state": "closed"})
+
+    mock_transport.handler = handler
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(cli, ["pr", "close", "5", "-R", "o/r"])
+    assert result.exit_code == 0, result.output
+    assert seen == {
+        "method": "PATCH",
+        "path": "/api/v1/repos/o/r/pulls/5",
+        "body": {"state": "closed"},
+    }
+    assert "Closed PR #5" in result.output
+
+
+def test_pr_reopen_patches_state_open(monkeypatch, mock_transport):
+    """pr reopen N → PATCH state=open."""
+    import json as _json
+
+    import httpx
+    from click.testing import CliRunner
+
+    from forge.cli.main import cli
+
+    seen = {}
+    def handler(request):
+        seen["body"] = _json.loads(request.content) if request.content else None
+        return httpx.Response(200, json={"number": 5, "state": "open"})
+
+    mock_transport.handler = handler
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(cli, ["pr", "reopen", "5", "-R", "o/r"])
+    assert result.exit_code == 0, result.output
+    assert seen["body"] == {"state": "open"}
+    assert "Reopened PR #5" in result.output
+
+
+def test_pr_close_404_exits_3(monkeypatch, mock_transport):
+    import httpx
+    from click.testing import CliRunner
+
+    from forge.cli.main import cli
+
+    mock_transport.handler = lambda request: httpx.Response(404, json={"message": "not found"})
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(cli, ["pr", "close", "9999", "-R", "o/r"])
+    assert result.exit_code == 3
+    assert "not found" in result.output
+
+
+def test_pr_edit_base_patches_base_field(monkeypatch, mock_transport):
+    """pr edit N --base X → PATCH /pulls/N {base: X}."""
+    import json as _json
+
+    import httpx
+    from click.testing import CliRunner
+
+    from forge.cli.main import cli
+
+    seen = {}
+    def handler(request):
+        seen["body"] = _json.loads(request.content)
+        return httpx.Response(200, json={"number": 5, "base": {"ref": "test"}})
+
+    mock_transport.handler = handler
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(
+        cli, ["pr", "edit", "5", "-R", "o/r", "--base", "test"])
+    assert result.exit_code == 0, result.output
+    assert seen["body"] == {"base": "test"}
+    assert "Edited PR #5" in result.output
+
+
+def test_pr_edit_multiple_fields_sends_all(monkeypatch, mock_transport):
+    import json as _json
+
+    import httpx
+    from click.testing import CliRunner
+
+    from forge.cli.main import cli
+
+    seen = {}
+    def handler(request):
+        seen["body"] = _json.loads(request.content)
+        return httpx.Response(200, json={"number": 5})
+
+    mock_transport.handler = handler
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(cli, [
+        "pr", "edit", "5", "-R", "o/r",
+        "--title", "new title", "--body", "new body", "--base", "main",
+    ])
+    assert result.exit_code == 0, result.output
+    assert seen["body"] == {"title": "new title", "body": "new body", "base": "main"}
+
+
+def test_pr_edit_no_fields_exits_2(monkeypatch):
+    from click.testing import CliRunner
+
+    from forge.cli.main import cli
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(cli, ["pr", "edit", "5", "-R", "o/r"])
+    assert result.exit_code == 2
+    assert "at least one of" in result.output.lower() or "no fields" in result.output.lower()
+
+
+def test_pr_edit_422_surfaces_validation_error(monkeypatch, mock_transport):
+    import httpx
+    from click.testing import CliRunner
+
+    from forge.cli.main import cli
+
+    mock_transport.handler = lambda request: httpx.Response(
+        422, json={"message": "branch does not exist"})
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(
+        cli, ["pr", "edit", "5", "-R", "o/r", "--base", "nonexistent"])
+    assert result.exit_code == 6
+    assert "branch does not exist" in result.output
+
+
+def test_pr_log_fetches_failed_runs_for_head_sha(monkeypatch, mock_transport):
+    """pr log N: resolve PR → head_sha; list tasks; keep matching+failed; concat logs."""
+    import httpx
+    from click.testing import CliRunner
+
+    from forge import logs
+    from forge.cli.main import cli
+
+    pr_response = {
+        "number": 5, "title": "test", "state": "open", "merged": False,
+        "draft": False, "user": {"login": "u"},
+        "head": {"ref": "feat", "sha": "deadbeef"}, "base": {"ref": "main"},
+        "created_at": "t", "html_url": "u", "labels": [],
+    }
+    tasks_response = {
+        "workflow_runs": [
+            {"id": 200, "run_number": 8, "name": "test (3.12)", "display_title": "t",
+             "head_branch": "feat", "head_sha": "deadbeef", "status": "failure",
+             "event": "push", "url": "u", "created_at": "t",
+             "run_started_at": "t", "updated_at": "t", "workflow_id": "test.yml"},
+            {"id": 201, "run_number": 8, "name": "test (3.13)", "display_title": "t",
+             "head_branch": "feat", "head_sha": "deadbeef", "status": "success",
+             "event": "push", "url": "u", "created_at": "t",
+             "run_started_at": "t", "updated_at": "t", "workflow_id": "test.yml"},
+            {"id": 100, "run_number": 1, "name": "old", "display_title": "old",
+             "head_branch": "main", "head_sha": "othersha", "status": "failure",
+             "event": "push", "url": "u", "created_at": "t",
+             "run_started_at": "t", "updated_at": "t", "workflow_id": "test.yml"},
+        ],
+        "total_count": 3,
+    }
+
+    def handler(request):
+        if request.url.path.endswith("/pulls/5"):
+            return httpx.Response(200, json=pr_response)
+        if "/actions/tasks" in request.url.path:
+            return httpx.Response(200, json=tasks_response)
+        return httpx.Response(404)
+    mock_transport.handler = handler
+
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+
+    fetched = []
+    def fake_fetch_log(*, container, owner, repo, task_id, **kwargs):
+        fetched.append(task_id)
+        return f"---log for {task_id}---\n"
+    monkeypatch.setattr(logs, "fetch_log", fake_fetch_log)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(
+        cli, ["pr", "log", "5", "-R", "o/r", "--container", "fj"])
+    assert result.exit_code == 0, result.output
+    # Default --failed-only=True: only task 200 (failure on matching sha)
+    assert fetched == [200]
+    assert "===== run #8 \"test (3.12)\" (id=200) status=failure =====" in result.output
+    assert "---log for 200---" in result.output
+    # Task 201 (success on matching sha) and 100 (different sha) excluded
+    assert "201" not in result.output
+    assert "100" not in result.output
+
+
+def test_pr_log_all_includes_success_runs(monkeypatch, mock_transport):
+    import httpx
+    from click.testing import CliRunner
+
+    from forge import logs
+    from forge.cli.main import cli
+
+    pr_response = {
+        "number": 5, "title": "x", "state": "open", "merged": False, "draft": False,
+        "user": {"login": "u"}, "head": {"ref": "f", "sha": "sha1"}, "base": {"ref": "m"},
+        "created_at": "t", "html_url": "u", "labels": [],
+    }
+    tasks_response = {
+        "workflow_runs": [
+            {"id": 200, "run_number": 1, "name": "a", "display_title": "a",
+             "head_branch": "f", "head_sha": "sha1", "status": "failure",
+             "event": "push", "url": "u", "created_at": "t",
+             "run_started_at": "t", "updated_at": "t", "workflow_id": "test.yml"},
+            {"id": 201, "run_number": 1, "name": "b", "display_title": "a",
+             "head_branch": "f", "head_sha": "sha1", "status": "success",
+             "event": "push", "url": "u", "created_at": "t",
+             "run_started_at": "t", "updated_at": "t", "workflow_id": "test.yml"},
+        ],
+        "total_count": 2,
+    }
+    def handler(request):
+        if request.url.path.endswith("/pulls/5"):
+            return httpx.Response(200, json=pr_response)
+        if "/actions/tasks" in request.url.path:
+            return httpx.Response(200, json=tasks_response)
+        return httpx.Response(404)
+    mock_transport.handler = handler
+
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+
+    fetched = []
+    def fake_fetch_log(*, container, owner, repo, task_id, **kwargs):
+        from forge.errors import NotFoundError
+        fetched.append(task_id)
+        if task_id == 201:
+            raise NotFoundError(f"no log on disk for run {task_id}")
+        return f"---log for {task_id}---\n"
+    monkeypatch.setattr(logs, "fetch_log", fake_fetch_log)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    # --no-failed-only flips default
+    result = CliRunner().invoke(
+        cli, ["pr", "log", "5", "-R", "o/r", "--container", "fj", "--no-failed-only"])
+    assert result.exit_code == 0, result.output
+    assert fetched == [200, 201]
+    assert "===== run #1 \"a\" (id=200) status=failure =====" in result.output
+    assert "===== run #1 \"b\" (id=201) status=success =====" in result.output
+    assert "no log on disk for run 201" in result.output
+
+
+def test_pr_log_no_matching_runs_exits_0_with_warning(monkeypatch, mock_transport):
+    import httpx
+    from click.testing import CliRunner
+
+    from forge.cli.main import cli
+
+    pr_response = {
+        "number": 5, "title": "x", "state": "open", "merged": False, "draft": False,
+        "user": {"login": "u"}, "head": {"ref": "f", "sha": "needle"}, "base": {"ref": "m"},
+        "created_at": "t", "html_url": "u", "labels": [],
+    }
+    tasks_response = {"workflow_runs": [], "total_count": 0}
+    def handler(request):
+        if request.url.path.endswith("/pulls/5"):
+            return httpx.Response(200, json=pr_response)
+        return httpx.Response(200, json=tasks_response)
+    mock_transport.handler = handler
+
+    from forge import client as client_mod
+    orig = client_mod.ForgejoClient.__init__
+    def patched(self, *, host, token, transport=None, timeout=10.0, debug=False):
+        orig(self, host=host, token=token,
+             transport=mock_transport.transport(), timeout=timeout, debug=debug)
+    monkeypatch.setattr(client_mod.ForgejoClient, "__init__", patched)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(
+        cli, ["pr", "log", "5", "-R", "o/r", "--container", "fj"])
+    assert result.exit_code == 0
+    assert "no" in result.output.lower() and "run" in result.output.lower()

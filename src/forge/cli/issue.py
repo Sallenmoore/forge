@@ -3,23 +3,11 @@ import json as json_module
 
 import click
 
+from forge.cli._common import filter_json, requested_fields
 from forge.cli._common import resolve as _resolve
 from forge.client import ForgejoClient
 from forge.errors import UsageError
-from forge.translate import JSON_FIELD_NAMES, comment_to_gh, issue_to_gh
-
-
-def _requested_fields(fields_str: str) -> list[str]:
-    return [f.strip() for f in fields_str.split(",") if f.strip()]
-
-
-def _filter_json(rows: list[dict], fields_str: str, registry: str = "issue") -> list[dict]:
-    requested = _requested_fields(fields_str)
-    known = JSON_FIELD_NAMES[registry]
-    for f in requested:
-        if f not in known:
-            raise UsageError(f"unknown field: {f} — available: {','.join(known)}")
-    return [{f: row[f] for f in requested} for row in rows]
+from forge.translate import comment_to_gh, issue_to_gh
 
 
 @click.group()
@@ -45,7 +33,7 @@ def issue_list(ctx, repo, state, json_fields):
         client.close()
     rows = [issue_to_gh(p) for p in raw]
     if json_fields:
-        click.echo(json_module.dumps(_filter_json(rows, json_fields)))
+        click.echo(json_module.dumps(filter_json(rows, json_fields, "issue")))
         return
     for r in rows:
         labels = ",".join(lbl["name"] for lbl in r.get("labels", []))
@@ -62,7 +50,7 @@ def issue_list(ctx, repo, state, json_fields):
 def issue_view(ctx, number, repo, show_comments, json_fields):
     """Show issue details."""
     want_comments = show_comments or (
-        json_fields is not None and "comments" in _requested_fields(json_fields)
+        json_fields is not None and "comments" in requested_fields(json_fields)
     )
     client, spec = _resolve(ctx, repo_override=repo)
     try:
@@ -75,7 +63,7 @@ def issue_view(ctx, number, repo, show_comments, json_fields):
     comments = [comment_to_gh(c) for c in raw_comments]
     if json_fields:
         row = {**translated, "comments": comments}
-        click.echo(json_module.dumps(_filter_json([row], json_fields, "issue_view")[0]))
+        click.echo(json_module.dumps(filter_json([row], json_fields, "issue_view")[0]))
         return
     click.echo(f"#{translated['number']} {translated['title']}")
     click.echo(f"State:  {translated['state']}")

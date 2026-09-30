@@ -1,6 +1,7 @@
 # src/forge/client.py
 import os
 import re
+import sys
 import time
 from pathlib import Path
 
@@ -60,8 +61,10 @@ class ForgejoClient:
         token: str,
         transport: httpx.BaseTransport | None = None,
         timeout: float = 10.0,
+        debug: bool = False,
     ):
         self._host = host.rstrip("/")
+        self._debug = debug
         self._http = httpx.Client(
             base_url=f"{self._host}/api/v1",
             headers={"Authorization": f"token {token}",
@@ -82,6 +85,12 @@ class ForgejoClient:
         params: dict | None = None,
         retry_backoff: float = 1.0,
     ) -> dict | list | None:
+        full_url = f"{self._host}/api/v1{path}"
+        if self._debug:
+            body_note = f" body={json!r}" if json is not None else " (no body)"
+            params_note = f" params={params!r}" if params else ""
+            sys.stderr.write(f"> {method} {full_url}{params_note}{body_note}\n")
+        t0 = time.perf_counter()
         try:
             resp = self._http.request(method, path, json=json, params=params)
         except httpx.TimeoutException as e:
@@ -93,6 +102,11 @@ class ForgejoClient:
         if 500 <= resp.status_code < 600 and retry_backoff > 0:
             time.sleep(retry_backoff)
             resp = self._http.request(method, path, json=json, params=params)
+        elapsed_ms = int((time.perf_counter() - t0) * 1000)
+        if self._debug:
+            sys.stderr.write(
+                f"< {resp.status_code} ({len(resp.content)} bytes, {elapsed_ms}ms)\n"
+            )
         _raise_for_response(resp)
         if resp.status_code == 204 or not resp.content:
             return None
