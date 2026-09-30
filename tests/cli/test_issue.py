@@ -157,3 +157,59 @@ def test_issue_view_resolves_repo_against_forgejo_host_env(
 
     assert result.exit_code == 0, result.output
     assert "Something broke" in result.output
+
+
+def _issue_and_comments_handler(calls):
+    forgejo_issue = json.loads((FIXTURES / "forgejo" / "issue.json").read_text())
+    comments = json.loads((FIXTURES / "forgejo" / "issue_comments.json").read_text())
+
+    def handler(r):
+        calls.append(r.url.path)
+        if r.url.path.endswith("/comments"):
+            return httpx.Response(200, json=comments)
+        return httpx.Response(200, json=forgejo_issue)
+    return handler
+
+
+def test_issue_view_comments_flag_prints_thread(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    calls = []
+    mock_transport.handler = _issue_and_comments_handler(calls)
+    result = CliRunner().invoke(cli, ["issue", "view", "42", "-R", "samoore/storyteller",
+                                      "--comments"])
+    assert result.exit_code == 0, result.output
+    assert "/api/v1/repos/samoore/storyteller/issues/42/comments" in calls
+    assert "dev-agent" in result.output
+    assert "2026-09-23T09:05:00Z" in result.output
+    assert "Fixed in #43." in result.output
+    # thread follows the body
+    assert result.output.index("Fixed in #43.") > result.output.index("Something broke")
+
+
+def test_issue_view_without_comments_skips_comments_request(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    calls = []
+    mock_transport.handler = _issue_and_comments_handler(calls)
+    result = CliRunner().invoke(cli, ["issue", "view", "42", "-R", "samoore/storyteller"])
+    assert result.exit_code == 0, result.output
+    assert not any(p.endswith("/comments") for p in calls)
+
+
+def test_issue_view_json_comments(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    calls = []
+    mock_transport.handler = _issue_and_comments_handler(calls)
+    result = CliRunner().invoke(cli, ["issue", "view", "42", "-R", "samoore/storyteller",
+                                      "--json", "number,comments"])
+    assert result.exit_code == 0, result.output
+    expected = json.loads((FIXTURES / "gh" / "issue_comments.json").read_text())
+    assert json.loads(result.output) == {"number": 42, "comments": expected}
+
+
+def test_issue_list_rejects_comments_json_field(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    mock_transport.handler = lambda r: httpx.Response(200, json=[])
+    result = CliRunner().invoke(cli, ["issue", "list", "-R", "samoore/storyteller",
+                                      "--json", "comments"])
+    assert result.exit_code == 2
+    assert "unknown field: comments" in result.output

@@ -69,3 +69,20 @@ def issue_to_gh(forgejo_issue: dict) -> dict:
 
 
 JSON_FIELD_NAMES["issue"] = tuple(ISSUE_FIELDS.keys())
+
+
+COMMENT_FIELDS: dict[str, str | Callable[[dict], Any]] = {
+    "author":     lambda c: {"login": c["user"]["login"]},
+    "body":       "body",
+    "createdAt":  "created_at",
+    "url":        "html_url",
+}
+
+
+def comment_to_gh(forgejo_comment: dict) -> dict:
+    return _translate(forgejo_comment, COMMENT_FIELDS)
+
+
+# `comments` is served by a second endpoint (/issues/{n}/comments), so only
+# `issue view` — which makes that call on demand — can emit it.
+JSON_FIELD_NAMES["issue_view"] = (*JSON_FIELD_NAMES["issue"], "comments")

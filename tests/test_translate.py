@@ -2,7 +2,14 @@
 import json
 from pathlib import Path
 
-from forge.translate import ISSUE_FIELDS, JSON_FIELD_NAMES, PR_FIELDS, issue_to_gh, pr_to_gh
+from forge.translate import (
+    ISSUE_FIELDS,
+    JSON_FIELD_NAMES,
+    PR_FIELDS,
+    comment_to_gh,
+    issue_to_gh,
+    pr_to_gh,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -43,3 +50,16 @@ def test_json_field_names_returns_known_issue_fields():
     assert "number" in names
     assert "body" in names
     assert names == tuple(ISSUE_FIELDS.keys())   # registry coupling, matches T7 pattern
+
+
+def test_comment_translation_matches_gh_fixture():
+    forgejo_comments = json.loads((FIXTURES / "forgejo" / "issue_comments.json").read_text())
+    expected = json.loads((FIXTURES / "gh" / "issue_comments.json").read_text())
+    assert [comment_to_gh(c) for c in forgejo_comments] == expected
+
+
+def test_issue_view_fields_extend_issue_fields_with_comments():
+    # `comments` comes from a second endpoint, so only `issue view` can emit it;
+    # `issue list` must keep rejecting it.
+    assert JSON_FIELD_NAMES["issue_view"] == (*ISSUE_FIELDS.keys(), "comments")
+    assert "comments" not in JSON_FIELD_NAMES["issue"]

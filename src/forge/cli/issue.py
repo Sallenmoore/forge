@@ -3,15 +3,19 @@ import json as json_module
 
 import click
 
-from forge.client import ForgejoClient
 from forge.cli._common import resolve as _resolve
+from forge.client import ForgejoClient
 from forge.errors import UsageError
-from forge.translate import JSON_FIELD_NAMES, issue_to_gh
+from forge.translate import JSON_FIELD_NAMES, comment_to_gh, issue_to_gh
 
 
-def _filter_json(rows: list[dict], fields_str: str) -> list[dict]:
-    requested = [f.strip() for f in fields_str.split(",") if f.strip()]
-    known = JSON_FIELD_NAMES["issue"]
+def _requested_fields(fields_str: str) -> list[str]:
+    return [f.strip() for f in fields_str.split(",") if f.strip()]
+
+
+def _filter_json(rows: list[dict], fields_str: str, registry: str = "issue") -> list[dict]:
+    requested = _requested_fields(fields_str)
+    known = JSON_FIELD_NAMES[registry]
     for f in requested:
         if f not in known:
             raise UsageError(f"unknown field: {f} — available: {','.join(known)}")
@@ -51,18 +55,27 @@ def issue_list(ctx, repo, state, json_fields):
 @issue.command("view")
 @click.argument("number", type=int)
 @click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--comments", "show_comments", is_flag=True,
+              help="Append the comment thread (author, timestamp, body)")
 @click.option("--json", "json_fields", default=None)
 @click.pass_context
-def issue_view(ctx, number, repo, json_fields):
+def issue_view(ctx, number, repo, show_comments, json_fields):
     """Show issue details."""
+    want_comments = show_comments or (
+        json_fields is not None and "comments" in _requested_fields(json_fields)
+    )
     client, spec = _resolve(ctx, repo_override=repo)
     try:
-        raw = client.get(f"/repos/{spec.owner}/{spec.repo}/issues/{number}")
+        path = f"/repos/{spec.owner}/{spec.repo}/issues/{number}"
+        raw = client.get(path)
+        raw_comments = client.get(f"{path}/comments") if want_comments else []
     finally:
         client.close()
     translated = issue_to_gh(raw)
+    comments = [comment_to_gh(c) for c in raw_comments]
     if json_fields:
-        click.echo(json_module.dumps(_filter_json([translated], json_fields)[0]))
+        row = {**translated, "comments": comments}
+        click.echo(json_module.dumps(_filter_json([row], json_fields, "issue_view")[0]))
         return
     click.echo(f"#{translated['number']} {translated['title']}")
     click.echo(f"State:  {translated['state']}")
@@ -71,6 +84,17 @@ def issue_view(ctx, number, repo, json_fields):
     if translated.get("body"):
         click.echo("")
         click.echo(translated["body"])
+    if show_comments:
+        _echo_comments(comments)
+
+
+def _echo_comments(comments: list[dict]) -> None:
+    click.echo("")
+    click.echo(f"--- {len(comments)} comment(s) ---")
+    for c in comments:
+        click.echo("")
+        click.echo(f"{c['author']['login']} commented {c['createdAt']}")
+        click.echo(c["body"])
 
 
 @issue.command("create")
