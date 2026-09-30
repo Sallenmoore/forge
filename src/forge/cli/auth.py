@@ -47,7 +47,7 @@ def auth_git_credential(ctx, op):
     """git credential helper protocol.
 
     Set up with:
-        git config --global credential.https://git.stevenamoore.dev.helper \\
+        git config --global credential.https://forgejo.bu-its.binghamton.edu.helper \\
             '!forge auth git-credential'
     """
     _ = sys.stdin.read()  # drain stdin (git sends k=v lines)
