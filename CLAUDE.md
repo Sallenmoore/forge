@@ -2,8 +2,7 @@
 
 ## Known v0.2 limitations
 
-- No `forge run cancel` / `forge run rerun` — Forgejo's REST API has neither (checked against the 14.0.5 swagger); both exist only as web-UI routes. Tracked in #3.
-- No `forge run view <id>` yet. Forgejo 11 had no single-run endpoint; 14.x has `GET /repos/{o}/{r}/actions/runs/{id}`. Tracked in #3.
+- `forge run cancel` / `forge run rerun` only explain themselves: Forgejo's REST API has neither (checked against the 14.0.5 swagger; they are web-UI routes needing a session cookie + CSRF). They exit 1 with the run's web URL. Revisit if upstream adds the endpoints.
 - No `forge workflow run` (workflow_dispatch trigger). Deferred to v0.3.
 - No `pr edit --add-label/--add-assignee/--milestone`. v0.2 supports only `--title/--body/--base`.
 - `--no-retry` flag and `Retry-After` header handling not implemented (deferred to v0.3; self-hosted Forgejo rarely rate-limits).
@@ -31,6 +30,7 @@ Never special-case at the call site.
 - **PR merge:** `{"Do": "merge"}` — capital D. Forgejo-specific.
 - **Issues endpoint:** `/repos/o/r/issues` returns issues AND PRs unless `&type=issues` is passed. `forge issue list` always passes the filter.
 - **Issue create labels:** must be integer IDs, not names. `forge issue create --label bug` resolves names client-side via `GET /repos/o/r/labels` first.
+- **Three run numbers.** `/actions/tasks` rows (what `run list` shows) have a task `id` and a `run_number`; the `run_number` is the per-repo index in web URLs (`/actions/runs/153`). `/actions/runs/{id}` wants a *third* number, the global run id, that nothing user-facing shows. `forge run view N` therefore queries `/actions/runs?run_number=N`, never `/actions/runs/N`, which silently returns a different run.
 - **PR comments:** posted to `/issues/{N}/comments` (the issues endpoint), not `/pulls/{N}/comments`. Same as gh.
 
 ## Repo resolution gotchas

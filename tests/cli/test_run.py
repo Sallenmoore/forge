@@ -211,3 +211,67 @@ def test_run_log_resolves_repo_against_forgejo_host_env(monkeypatch, tmp_path, e
     result = CliRunner().invoke(cli, ["run", "log", "7", "--container", "forgejo"])
     assert result.exit_code == 0, result.output
     assert seen == {"owner": "its-linux-team", "repo": "unitory"}
+
+
+def _action_run_fixture():
+    from pathlib import Path
+    fixtures = Path(__file__).parent.parent / "fixtures"
+    return _json.loads((fixtures / "forgejo" / "action_run.json").read_text())
+
+
+def test_run_view_looks_up_run_by_run_number(monkeypatch, mock_transport):
+    """The number users see (web URL, `run list` runNumber) is the per-repo index,
+    not the global id /actions/runs/{id} wants, so view filters the list by it."""
+    seen = {}
+
+    def handler(request):
+        seen["path"] = request.url.path
+        seen["params"] = dict(request.url.params)
+        return httpx.Response(200, json={"workflow_runs": [_action_run_fixture()],
+                                         "total_count": 1})
+    mock_transport.handler = handler
+    _patch_client_with(monkeypatch, mock_transport)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(cli, ["run", "view", "153", "-R", "samoore/forge"])
+    assert result.exit_code == 0, result.output
+    assert seen["path"] == "/api/v1/repos/samoore/forge/actions/runs"
+    assert seen["params"]["run_number"] == "153"
+    assert "failure" in result.output
+    assert "test.yml" in result.output
+    assert "2542592" in result.output
+    assert "actions/runs/153" in result.output
+
+
+def test_run_view_json(monkeypatch, mock_transport):
+    mock_transport.handler = lambda r: httpx.Response(
+        200, json={"workflow_runs": [_action_run_fixture()], "total_count": 1})
+    _patch_client_with(monkeypatch, mock_transport)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(cli, ["run", "view", "153", "-R", "samoore/forge",
+                                      "--json", "id,runNumber,status"])
+    assert result.exit_code == 0, result.output
+    assert _json.loads(result.output) == {"id": 305, "runNumber": 153, "status": "failure"}
+
+
+def test_run_view_unknown_run_exits_3(monkeypatch, mock_transport):
+    mock_transport.handler = lambda r: httpx.Response(
+        200, json={"workflow_runs": [], "total_count": 0})
+    _patch_client_with(monkeypatch, mock_transport)
+    monkeypatch.setenv("FORGEJO_TOKEN", "tok")
+
+    result = CliRunner().invoke(cli, ["run", "view", "999", "-R", "samoore/forge"])
+    assert result.exit_code == 3
+    assert "999" in result.output
+
+
+def test_run_cancel_and_rerun_explain_missing_api(monkeypatch, env_no_token):
+    """Forgejo's REST API has no cancel/rerun (#3): say so and point at the web UI,
+    without making a request that can only 404."""
+    monkeypatch.setenv("FORGEJO_HOST", "https://forgejo.example.com")
+    for verb in ("cancel", "rerun"):
+        result = CliRunner().invoke(cli, ["run", verb, "153", "-R", "samoore/forge"])
+        assert result.exit_code == 1, result.output
+        assert "no REST API" in result.output
+        assert "https://forgejo.example.com/samoore/forge/actions/runs/153" in result.output

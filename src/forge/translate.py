@@ -110,3 +110,30 @@ def run_to_gh(forgejo_run: dict) -> dict:
 
 
 JSON_FIELD_NAMES["run"] = tuple(RUN_FIELDS.keys())
+
+
+# A single run from /actions/runs, which is a different object from the
+# /actions/tasks rows RUN_FIELDS covers: `id` here is the global run id, and
+# `runNumber` is the per-repo index shown in web URLs (a task's `run_number`).
+ACTION_RUN_FIELDS: dict[str, str | Callable[[dict], Any]] = {
+    "id":           "id",
+    "runNumber":    "index_in_repo",
+    "displayTitle": "title",
+    "workflowId":   "workflow_id",
+    "headBranch":   "prettyref",
+    "headSha":      "commit_sha",
+    "status":       "status",
+    "event":        "trigger_event",
+    "triggeredBy":  lambda r: {"login": r["trigger_user"]["login"]},
+    "url":          "html_url",
+    "createdAt":    "created",
+    "startedAt":    "started",
+    "stoppedAt":    "stopped",
+}
+
+
+def action_run_to_gh(forgejo_run: dict) -> dict:
+    return _translate(forgejo_run, ACTION_RUN_FIELDS)
+
+
+JSON_FIELD_NAMES["action_run"] = tuple(ACTION_RUN_FIELDS.keys())

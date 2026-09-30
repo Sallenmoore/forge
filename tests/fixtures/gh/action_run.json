@@ -1,0 +1,15 @@
+{
+  "id": 305,
+  "runNumber": 153,
+  "displayTitle": "release: bump version to 0.2.0",
+  "workflowId": "test.yml",
+  "headBranch": "main",
+  "headSha": "2542592aa0f3a0bf4f2f7d215ad55e76047561ab",
+  "status": "failure",
+  "event": "push",
+  "triggeredBy": {"login": "samoore"},
+  "url": "https://forgejo.bu-its.binghamton.edu/samoore/forge/actions/runs/153",
+  "createdAt": "2026-09-30T08:43:53-04:00",
+  "startedAt": "2026-09-30T08:43:53-04:00",
+  "stoppedAt": "2026-09-30T08:43:57-04:00"
+}

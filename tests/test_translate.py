@@ -101,3 +101,12 @@ def test_run_to_gh_maps_all_run_fields():
     }
     assert "run" in JSON_FIELD_NAMES
     assert "runNumber" in JSON_FIELD_NAMES["run"]
+
+
+def test_action_run_translation_matches_gh_fixture():
+    from forge.translate import action_run_to_gh
+
+    forgejo_run = json.loads((FIXTURES / "forgejo" / "action_run.json").read_text())
+    expected = json.loads((FIXTURES / "gh" / "action_run.json").read_text())
+    assert action_run_to_gh(forgejo_run) == expected
+    assert JSON_FIELD_NAMES["action_run"] == tuple(expected)
