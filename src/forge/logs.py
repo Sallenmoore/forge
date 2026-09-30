@@ -4,12 +4,13 @@
 The Forgejo 11.x API exposes no log endpoint; this module reads the on-disk
 log file from inside the Forgejo container via `docker exec`. Path:
 
-    /data/gitea/actions_log/{owner}/{repo}/{task_id_hex}/{task_id_decimal}.log.zst
+    /data/gitea/actions_log/{owner}/{repo}/{shard}/{task_id_decimal}.log.zst
 
-where task_id_hex is format(task_id, 'x') (lowercase, no padding).
+where shard is `%02x` of task_id % 256 — the id's low byte, two lowercase hex
+digits (292 → "24"). Verified against a live 14.0.5 instance, 2026-09-30.
 
-Forgejo only retains logs for FAILED runs — success runs get purged on
-cleanup, so a missing file is the expected outcome for a successful run.
+Logs are kept for successful tasks as well as failed ones; a missing file
+usually means the caller passed a run number, not a task id.
 """
 import subprocess
 
@@ -22,7 +23,7 @@ ISSUE_URL = "https://github.com/Sallenmoore/forge/issues/2"
 
 def compute_log_path(owner: str, repo: str, task_id: int) -> str:
     """Path inside the Forgejo container for the given task's log file."""
-    shard = format(task_id, "x")
+    shard = f"{task_id % 256:02x}"
     return f"/data/gitea/actions_log/{owner}/{repo}/{shard}/{task_id}.log.zst"
 
 
@@ -51,8 +52,8 @@ def fetch_log(*, container: str | None, owner: str, repo: str, task_id: int,
         stderr = proc.stderr.decode("utf-8", errors="replace").strip()
         if "no such file" in stderr.lower():
             raise NotFoundError(
-                f"no log on disk for run {task_id} (probably succeeded — "
-                f"Forgejo only retains failed-run logs)"
+                f"no log on disk for task {task_id} — pass a task id (first "
+                f"column of `forge run list`), not a run number; or it expired"
             )
         raise ServerError(f"docker exec failed: {stderr}")
     try:

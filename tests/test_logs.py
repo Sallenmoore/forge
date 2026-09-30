@@ -11,11 +11,18 @@ def test_compute_log_path_uses_lowercase_hex_dir():
     assert p == "/data/gitea/actions_log/samoore/forge/a1/161.log.zst"
 
 
-def test_compute_log_path_small_ids_no_pad():
-    assert logs.compute_log_path("o", "r", 1) == "/data/gitea/actions_log/o/r/1/1.log.zst"
-    assert logs.compute_log_path("o", "r", 15) == "/data/gitea/actions_log/o/r/f/15.log.zst"
+def test_compute_log_path_shards_by_low_byte_zero_padded():
+    """Forgejo shards by `%02x` of task_id % 256, not the full hex id.
+
+    Verified against 196 files on a live 14.0.5 instance, 2026-09-30:
+    ids 1-4 live in 01/..04/, ids 289-292 in 21/..24/.
+    """
+    assert logs.compute_log_path("o", "r", 1) == "/data/gitea/actions_log/o/r/01/1.log.zst"
+    assert logs.compute_log_path("o", "r", 15) == "/data/gitea/actions_log/o/r/0f/15.log.zst"
     assert logs.compute_log_path("o", "r", 120) == "/data/gitea/actions_log/o/r/78/120.log.zst"
-    assert logs.compute_log_path("o", "r", 309) == "/data/gitea/actions_log/o/r/135/309.log.zst"
+    assert logs.compute_log_path("o", "r", 256) == "/data/gitea/actions_log/o/r/00/256.log.zst"
+    assert logs.compute_log_path("o", "r", 292) == "/data/gitea/actions_log/o/r/24/292.log.zst"
+    assert logs.compute_log_path("o", "r", 309) == "/data/gitea/actions_log/o/r/35/309.log.zst"
 
 
 def test_fetch_log_via_container_decompresses_zstd(monkeypatch):
@@ -56,7 +63,7 @@ def test_fetch_log_missing_file_raises_not_found(monkeypatch):
     msg = str(exc_info.value).lower()
     assert "no log on disk" in msg
     assert "161" in msg
-    assert "forgejo only retains failed-run logs" in msg
+    assert "task id" in msg  # the usual mistake is passing a run number
 
 
 def test_fetch_log_docker_error_raises_server_error(monkeypatch):
