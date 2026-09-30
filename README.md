@@ -38,7 +38,7 @@ forge issue create -R user/repo --title "..." --body "..." --label bug
 | `auth` | `status`, `git-credential` |
 | `pr` | `list`, `view`, `create`, `merge`, `checks`, `comment`, `close`, `reopen`, `edit`, `log` |
 | `issue` | `list`, `view`, `create`, `close`, `comment` |
-| `run` | `list`, `log` |
+| `run` | `list`, `log`, `view` (`cancel`/`rerun` point at the web UI) |
 
 See [.github_compat_table.md](./.github_compat_table.md) for the full `gh` → `forge` mapping.
 
