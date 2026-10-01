@@ -54,14 +54,14 @@ def _generate_notes(client, base: str, web: str, tag: str, target: str | None) -
     head = tag if _tag_exists(client, base, tag) else (
         target or client.get(base)["default_branch"])
     prev = _previous_release_tag(client, base, tag)
+    # `commits?not=` rather than the compare endpoint: an Actions job token is
+    # refused by compare (404, "Can't read pulls…") on Forgejo 14.0.5, though
+    # it can read /commits and /pulls. The web compare *page* is fine to link.
+    query = {"sha": head, "stat": "false", "files": "false"}
     if prev:
-        compare = client.get(f"{base}/compare/{prev}...{head}")
-        shas = {c["sha"] for c in compare["commits"]}
-        changelog = f"{web}/compare/{prev}...{tag}"
-    else:
-        shas = {c["sha"] for c in client.paginate(
-            f"{base}/commits", {"sha": head, "stat": "false", "files": "false"})}
-        changelog = f"{web}/commits/tag/{tag}"
+        query["not"] = prev
+    shas = {c["sha"] for c in client.paginate(f"{base}/commits", query)}
+    changelog = f"{web}/compare/{prev}...{tag}" if prev else f"{web}/commits/tag/{tag}"
     prs = list(client.paginate(f"{base}/pulls", {"state": "closed"}))
     return format_notes(select_prs(prs, shas), changelog_url=changelog)
 

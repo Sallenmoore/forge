@@ -74,8 +74,11 @@ catting `/data/gitea/actions_log/{owner}/{repo}/{shard}/{id}.log.zst`.
 
 `release create --generate-notes` has no Forgejo endpoint to call (none through 14.0.5),
 so `release_notes.py` rebuilds GitHub's rule client-side: a PR is in a release when its
-`merge_commit_sha` lies in the release's commit range — `compare/{prev}...{tag}`, or the
-whole history under the tag for a first release. Not by merge date: that misfiles PRs
+`merge_commit_sha` lies in the release's commit range — `commits?sha={tag}&not={prev}`,
+or the whole history under the tag for a first release. **Not the compare endpoint:**
+an Actions job token gets a 404 from `/compare` ("Can't read pulls or can't read
+UnitTypeCode") on 14.0.5 while reading `/commits` and `/pulls` fine — measured from
+inside a job, 2026-10-01. That one release job is `release create`'s main caller. Not by merge date: that misfiles PRs
 merged into other branches. The previous release is the newest published one other than
 the tag being created. Only PRs appear; commits pushed straight to the branch don't.
 

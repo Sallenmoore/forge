@@ -38,11 +38,10 @@ def _paged(pages, request):
 class _Forgejo:
     """Routes the handful of endpoints `release create` touches; records the POST."""
 
-    def __init__(self, *, releases=(), tags=("v0.2.0",), compare=(), commits=(),
+    def __init__(self, *, releases=(), tags=("v0.2.0",), commits=(),
                  pulls=(), default_branch="main"):
         self.releases = list(releases)
         self.tags = set(tags)
-        self.compare = list(compare)
         self.commits = [list(p) for p in commits]
         self.pulls = [list(p) for p in pulls]
         self.default_branch = default_branch
@@ -64,9 +63,10 @@ class _Forgejo:
                 return httpx.Response(200, json={"name": tag})
             return httpx.Response(404, json={"message": "tag not found"})
         if path.startswith(f"{REPO}/compare/"):
-            return httpx.Response(200, json={
-                "commits": [{"sha": s} for s in self.compare],
-                "total_commits": len(self.compare)})
+            # What an Actions job token gets from compare on Forgejo 14.0.5,
+            # even though it can read /pulls and /commits.
+            return httpx.Response(404, json={
+                "message": "Can't read pulls or can't read UnitTypeCode"})
         if path == f"{REPO}/commits":
             return _paged([[{"sha": s} for s in p] for p in self.commits], r)
         if path == f"{REPO}/pulls":
@@ -106,14 +106,14 @@ def test_generate_notes_lists_prs_merged_since_previous_release(mock_transport, 
     fj = mock_transport.handler = _Forgejo(
         # Newest first, as Forgejo returns them; the tag being released is skipped.
         releases=[{"tag_name": "v0.2.0"}, {"tag_name": "v0.1.0"}],
-        compare=["m8", "c1"],
+        commits=[["m8", "c1"]],
         pulls=[[_pr(8, "m8"), _pr(3, "old")]],
     )
     result = _run("v0.2.0", "--generate-notes")
     assert result.exit_code == 0, result.output
-    assert (
-        "GET", f"{REPO}/compare/v0.1.0...v0.2.0", {}
-    ) in fj.seen
+    commit_queries = [q for m, path, q in fj.seen if path == f"{REPO}/commits"]
+    assert commit_queries[0]["sha"] == "v0.2.0"
+    assert commit_queries[0]["not"] == "v0.1.0"
     release_queries = [q for m, path, q in fj.seen
                        if m == "GET" and path == f"{REPO}/releases"]
     assert release_queries and release_queries[0]["draft"] == "false"
@@ -135,7 +135,7 @@ def test_generate_notes_first_release_walks_all_history(mock_transport, monkeypa
     result = _run("v0.1.0", "--generate-notes")
     assert result.exit_code == 0, result.output
     commit_pages = [p for m, path, p in fj.seen if path == f"{REPO}/commits"]
-    assert all(p["sha"] == "v0.1.0" for p in commit_pages)
+    assert all(p["sha"] == "v0.1.0" and "not" not in p for p in commit_pages)
     assert f"* PR 7 by @samoore in {HOST}/o/r/pulls/7" in fj.posted["body"]
     assert fj.posted["body"].endswith(
         f"**Full Changelog**: {HOST}/o/r/commits/tag/v0.1.0")
@@ -147,7 +147,7 @@ def test_generate_notes_reads_every_page_even_when_server_caps_page_size(
     _patch_client(monkeypatch, mock_transport)
     fj = mock_transport.handler = _Forgejo(
         releases=[{"tag_name": "v0.1.0"}],
-        compare=["a", "b", "c"],
+        commits=[["a", "b", "c"]],
         pulls=[[_pr(1, "a"), _pr(2, "b")], [_pr(3, "c")]],
     )
     result = _run("v0.2.0", "--generate-notes")
@@ -163,7 +163,9 @@ def test_generate_notes_for_a_new_tag_ranges_to_the_default_branch(
         releases=[{"tag_name": "v0.1.0"}], tags=(), default_branch="trunk")
     result = _run("v0.2.0", "--generate-notes")
     assert result.exit_code == 0, result.output
-    assert ("GET", f"{REPO}/compare/v0.1.0...trunk", {}) in fj.seen
+    commit_queries = [q for m, path, q in fj.seen if path == f"{REPO}/commits"]
+    assert commit_queries[0]["sha"] == "trunk"
+    assert commit_queries[0]["not"] == "v0.1.0"
 
 
 def test_notes_are_prepended_to_generated_notes(mock_transport, monkeypatch):
