@@ -3,7 +3,7 @@ import httpx
 import pytest
 
 from forge.client import ForgejoClient, discover_token
-from forge.errors import AuthError, NotFoundError, ServerError, ValidationError
+from forge.errors import AuthError, NotFoundError, ServerError, UsageError, ValidationError
 
 
 def test_token_from_explicit_arg(env_no_token):
@@ -90,6 +90,33 @@ def test_default_host_is_the_live_instance(env_no_token):
     from forge.cli._common import resolved_host
 
     assert resolved_host(None) == "https://forgejo.bu-its.binghamton.edu"
+
+
+@pytest.mark.parametrize("given, expected", [
+    ("forgejo.example", "https://forgejo.example"),
+    ("https://forgejo.example/", "https://forgejo.example"),
+    ("http://localhost:3000", "http://localhost:3000"),
+])
+def test_resolved_host_normalizes_scheme_and_trailing_slash(env_no_token, given, expected):
+    # A bare FORGEJO_HOST used to reach httpx as a scheme-less URL (#14).
+    from forge.cli._common import resolved_host
+
+    assert resolved_host(given) == expected
+
+
+def test_resolved_host_rejects_other_schemes(env_no_token):
+    from forge.cli._common import resolved_host
+
+    with pytest.raises(UsageError, match="ftp"):
+        resolved_host("ftp://forgejo.example")
+
+
+def test_auth_client_normalizes_bare_FORGEJO_HOST(env_no_token, monkeypatch):
+    from forge.cli.auth import _build_client
+
+    monkeypatch.setenv("FORGEJO_HOST", "forgejo.example")
+    monkeypatch.setenv("FORGEJO_TOKEN", "t")
+    assert _build_client(None, None)._host == "https://forgejo.example"
 
 
 def test_client_debug_logs_request_and_response_to_stderr(capsys, mock_transport):

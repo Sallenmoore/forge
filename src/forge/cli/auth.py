@@ -4,14 +4,14 @@ import sys
 
 import click
 
-from forge.client import DEFAULT_HOST, ForgejoClient, discover_token
+from forge.cli._common import resolved_host
+from forge.client import ForgejoClient, discover_token
 from forge.errors import AuthError
 
 
 def _build_client(token: str | None, host: str | None, debug: bool = False) -> ForgejoClient:
     resolved_token = discover_token(explicit=token, secrets_path=None)
-    resolved_host = host or os.environ.get("FORGEJO_HOST") or DEFAULT_HOST
-    return ForgejoClient(host=resolved_host, token=resolved_token, debug=debug)
+    return ForgejoClient(host=resolved_host(host), token=resolved_token, debug=debug)
 
 
 @click.group()
