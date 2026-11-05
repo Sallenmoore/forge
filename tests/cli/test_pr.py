@@ -524,3 +524,21 @@ def test_pr_log_no_matching_runs_exits_0_with_warning(monkeypatch, mock_transpor
         cli, ["pr", "log", "5", "-R", "o/r", "--container", "fj"])
     assert result.exit_code == 0
     assert "no" in result.output.lower() and "run" in result.output.lower()
+
+
+def test_pr_comment_and_edit_accept_body_file(mock_transport, monkeypatch):
+    from tests.cli.test_issue import _patch_client
+
+    _patch_client(monkeypatch, mock_transport)
+    bodies = []
+    def handler(r):
+        bodies.append(json.loads(r.content)["body"])
+        return httpx.Response(201, json={"html_url": "https://x/pulls/7"})
+    mock_transport.handler = handler
+    runner = CliRunner()
+    for args in (["comment", "7"], ["edit", "7"], ["create", "--title", "t",
+                                                    "--base", "main", "--head", "f"]):
+        result = runner.invoke(cli, ["pr", *args, "-R", "samoore/storyteller",
+                                     "--body-file", "-"], input="piped")
+        assert result.exit_code == 0, result.output
+    assert bodies == ["piped", "piped", "piped"]

@@ -21,6 +21,11 @@ def _patch_client(monkeypatch, mock_transport):
     monkeypatch.setenv("FORGEJO_TOKEN", "t")
 
 
+def _label_page(request, labels):
+    """Serve `labels` as page 1 of a paged endpoint; later pages are empty."""
+    return labels if request.url.params.get("page", "1") == "1" else []
+
+
 def test_issue_list_passes_type_issues_param(mock_transport, monkeypatch):
     _patch_client(monkeypatch, mock_transport)
     captured = {}
@@ -60,10 +65,10 @@ def test_issue_create_resolves_label_names_to_ids(mock_transport, monkeypatch):
     captured = {}
     def handler(r):
         if r.url.path.endswith("/labels"):
-            return httpx.Response(200, json=[
+            return httpx.Response(200, json=_label_page(r, [
                 {"id": 1, "name": "bug"},
                 {"id": 2, "name": "enhancement"},
-            ])
+            ]))
         captured["body"] = json.loads(r.content)
         return httpx.Response(201, json={
             "number": 43,
@@ -83,9 +88,9 @@ def test_issue_create_resolves_label_names_to_ids(mock_transport, monkeypatch):
 
 def test_issue_create_unknown_label_exits_2(mock_transport, monkeypatch):
     _patch_client(monkeypatch, mock_transport)
-    mock_transport.handler = lambda r: httpx.Response(200, json=[
+    mock_transport.handler = lambda r: httpx.Response(200, json=_label_page(r, [
         {"id": 1, "name": "bug"},
-    ])
+    ]))
     result = CliRunner().invoke(cli, [
         "issue", "create", "-R", "samoore/storyteller",
         "--title", "x", "--label", "made-up",
@@ -214,3 +219,111 @@ def test_issue_list_rejects_comments_json_field(mock_transport, monkeypatch):
                                       "--json", "comments"])
     assert result.exit_code == 2
     assert "unknown field: comments" in result.output
+
+
+def test_issue_create_body_file_reads_file(mock_transport, monkeypatch, tmp_path):
+    _patch_client(monkeypatch, mock_transport)
+    captured = {}
+    def handler(r):
+        captured["body"] = json.loads(r.content)
+        return httpx.Response(201, json={"html_url": "https://x/issues/43"})
+    mock_transport.handler = handler
+    f = tmp_path / "body.md"
+    f.write_text("uses `backticks` and $HOME\n")
+    result = CliRunner().invoke(cli, [
+        "issue", "create", "-R", "samoore/storyteller", "--title", "x", "--body-file", str(f),
+    ])
+    assert result.exit_code == 0, result.output
+    assert captured["body"]["body"] == "uses `backticks` and $HOME\n"
+
+
+def test_issue_comment_body_file_dash_reads_stdin(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    captured = {}
+    def handler(r):
+        captured["body"] = json.loads(r.content)
+        return httpx.Response(201, json={"html_url": "https://x/comments/9"})
+    mock_transport.handler = handler
+    result = CliRunner().invoke(cli, [
+        "issue", "comment", "42", "-R", "samoore/storyteller", "--body-file", "-",
+    ], input="from stdin")
+    assert result.exit_code == 0, result.output
+    assert captured["body"] == {"body": "from stdin"}
+
+
+def test_issue_comment_body_and_body_file_conflict(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    result = CliRunner().invoke(cli, [
+        "issue", "comment", "42", "-R", "samoore/storyteller",
+        "--body", "a", "--body-file", "-",
+    ], input="b")
+    assert result.exit_code == 2
+    assert "mutually exclusive" in result.output
+
+
+def test_issue_comment_requires_a_body(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    result = CliRunner().invoke(cli, ["issue", "comment", "42", "-R", "samoore/storyteller"])
+    assert result.exit_code == 2
+    assert "requires --body or --body-file" in result.output
+
+
+def test_issue_edit_patches_title_and_body(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    calls = []
+    def handler(r):
+        calls.append((r.method, r.url.path, json.loads(r.content) if r.content else None))
+        return httpx.Response(201, json={"html_url": "https://x/issues/42"})
+    mock_transport.handler = handler
+    result = CliRunner().invoke(cli, [
+        "issue", "edit", "42", "-R", "samoore/storyteller", "--title", "T", "--body", "B",
+    ])
+    assert result.exit_code == 0, result.output
+    assert calls == [("PATCH", "/api/v1/repos/samoore/storyteller/issues/42",
+                      {"title": "T", "body": "B"})]
+    assert "https://x/issues/42" in result.output
+
+
+def test_issue_edit_adds_and_removes_labels_by_id(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    calls = []
+    def handler(r):
+        if r.method == "GET":
+            return httpx.Response(200, json=_label_page(r, [
+                {"id": 1, "name": "bug"}, {"id": 2, "name": "enhancement"},
+            ]))
+        calls.append((r.method, r.url.path, json.loads(r.content) if r.content else None))
+        return httpx.Response(200, json=[])
+    mock_transport.handler = handler
+    result = CliRunner().invoke(cli, [
+        "issue", "edit", "42", "-R", "samoore/storyteller",
+        "--add-label", "bug", "--remove-label", "enhancement",
+    ])
+    assert result.exit_code == 0, result.output
+    base = "/api/v1/repos/samoore/storyteller/issues/42/labels"
+    assert calls == [("POST", base, {"labels": [1]}), ("DELETE", f"{base}/2", None)]
+
+
+def test_issue_edit_with_nothing_to_change_exits_2(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    result = CliRunner().invoke(cli, ["issue", "edit", "42", "-R", "samoore/storyteller"])
+    assert result.exit_code == 2
+    assert "at least one of" in result.output
+
+
+def test_label_lookup_follows_pagination(mock_transport, monkeypatch):
+    _patch_client(monkeypatch, mock_transport)
+    captured = {}
+    def handler(r):
+        if r.method == "GET":
+            page = r.url.params.get("page")
+            return httpx.Response(200, json={"1": [{"id": 1, "name": "bug"}],
+                                             "2": [{"id": 51, "name": "late"}]}.get(page, []))
+        captured["body"] = json.loads(r.content)
+        return httpx.Response(201, json={"html_url": "https://x/issues/43"})
+    mock_transport.handler = handler
+    result = CliRunner().invoke(cli, [
+        "issue", "create", "-R", "samoore/storyteller", "--title", "x", "--label", "late",
+    ])
+    assert result.exit_code == 0, result.output
+    assert captured["body"]["labels"] == [51]
