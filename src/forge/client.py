@@ -121,6 +121,9 @@ class ForgejoClient:
     def patch(self, path: str, json: dict | None = None, **kwargs) -> dict | list | None:
         return self._request("PATCH", path, json=json, **kwargs)
 
+    def delete(self, path: str, **kwargs) -> dict | list | None:
+        return self._request("DELETE", path, **kwargs)
+
     def paginate(self, path: str, params: dict | None = None, *, limit: int = 50):
         """Yield every row of a paged list endpoint.
 

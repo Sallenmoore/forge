@@ -1,0 +1,9 @@
+{
+  "id": 7,
+  "name": "bug",
+  "exclusive": false,
+  "is_archived": false,
+  "color": "d73a4a",
+  "description": "Something isn't working",
+  "url": "https://git.stevenamoore.dev/api/v1/repos/samoore/storyteller/labels/7"
+}

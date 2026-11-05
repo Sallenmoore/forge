@@ -110,3 +110,12 @@ def test_action_run_translation_matches_gh_fixture():
     expected = json.loads((FIXTURES / "gh" / "action_run.json").read_text())
     assert action_run_to_gh(forgejo_run) == expected
     assert JSON_FIELD_NAMES["action_run"] == tuple(expected)
+
+
+def test_label_translation_matches_gh_fixture():
+    from forge.translate import LABEL_FIELDS, label_to_gh
+
+    forgejo_label = json.loads((FIXTURES / "forgejo" / "label.json").read_text())
+    expected = json.loads((FIXTURES / "gh" / "label.json").read_text())
+    assert label_to_gh(forgejo_label) == expected
+    assert JSON_FIELD_NAMES["label"] == tuple(LABEL_FIELDS.keys())

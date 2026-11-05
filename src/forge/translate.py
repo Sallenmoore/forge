@@ -137,3 +137,19 @@ def action_run_to_gh(forgejo_run: dict) -> dict:
 
 
 JSON_FIELD_NAMES["action_run"] = tuple(ACTION_RUN_FIELDS.keys())
+
+
+LABEL_FIELDS: dict[str, str | Callable[[dict], Any]] = {
+    "id":          "id",
+    "name":        "name",
+    "color":       "color",
+    "description": "description",
+    "url":         "url",
+}
+
+
+def label_to_gh(forgejo_label: dict) -> dict:
+    return _translate(forgejo_label, LABEL_FIELDS)
+
+
+JSON_FIELD_NAMES["label"] = tuple(LABEL_FIELDS.keys())

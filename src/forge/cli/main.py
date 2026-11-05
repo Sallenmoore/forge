@@ -68,6 +68,7 @@ def cli(ctx, token, host, repo, debug):
 # imports.
 from forge.cli.auth import auth as _auth_group  # noqa: E402
 from forge.cli.issue import issue as _issue_group  # noqa: E402
+from forge.cli.label import label as _label_group  # noqa: E402
 from forge.cli.pr import pr as _pr_group  # noqa: E402
 from forge.cli.release import release as _release_group  # noqa: E402
 from forge.cli.run import run as _run_group  # noqa: E402
@@ -75,6 +76,7 @@ from forge.cli.run import run as _run_group  # noqa: E402
 cli.add_command(_auth_group)
 cli.add_command(_pr_group)
 cli.add_command(_issue_group)
+cli.add_command(_label_group)
 cli.add_command(_run_group)
 cli.add_command(_release_group)
 

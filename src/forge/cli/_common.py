@@ -11,6 +11,8 @@ dependency direction that keeps that layer extractable.
 """
 import os
 
+import click
+
 from forge.client import DEFAULT_HOST, ForgejoClient, discover_token
 from forge.errors import UsageError
 from forge.repo import resolve_repo
@@ -57,6 +59,27 @@ def resolve(ctx, repo_override: str | None = None):
         ctx.obj.get("token"), ctx.obj.get("host"), debug=ctx.obj.get("debug", False)
     )
     return client, spec
+
+
+# `-` means stdin; click.File handles that and closes the file.
+body_file_option = click.option(
+    "--body-file", type=click.File("r"), default=None,
+    help="Read the body from a file (- for stdin)",
+)
+
+
+def read_body(body: str | None, body_file, *, required_by: str | None = None) -> str | None:
+    """The body text from --body or --body-file, which are mutually exclusive.
+
+    `required_by` names the command when one of the two must be given.
+    """
+    if body is not None and body_file is not None:
+        raise UsageError("--body and --body-file are mutually exclusive")
+    if body_file is not None:
+        return body_file.read()
+    if body is None and required_by:
+        raise UsageError(f"{required_by} requires --body or --body-file")
+    return body
 
 
 def requested_fields(fields_str: str) -> list[str]:

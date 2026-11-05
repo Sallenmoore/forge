@@ -4,7 +4,7 @@ import os
 
 import click
 
-from forge.cli._common import filter_json
+from forge.cli._common import body_file_option, filter_json, read_body
 from forge.cli._common import resolve as _resolve
 from forge.errors import UsageError
 from forge.translate import pr_to_gh
@@ -66,12 +66,14 @@ def pr_view(ctx, number, repo, json_fields):
 @pr.command("create")
 @click.option("-R", "repo", default=None, help="owner/repo override")
 @click.option("--title", required=True)
-@click.option("--body", default="")
+@click.option("--body", default=None)
+@body_file_option
 @click.option("--base", required=True)
 @click.option("--head", required=True)
 @click.pass_context
-def pr_create(ctx, repo, title, body, base, head):
+def pr_create(ctx, repo, title, body, body_file, base, head):
     """Open a new PR."""
+    body = read_body(body, body_file) or ""
     client, spec = _resolve(ctx, repo_override=repo)
     try:
         resp = client.post(
@@ -129,10 +131,12 @@ def pr_checks(ctx, number, repo):
 @pr.command("comment")
 @click.argument("number", type=int)
 @click.option("-R", "repo", default=None, help="owner/repo override")
-@click.option("--body", required=True)
+@click.option("--body", default=None)
+@body_file_option
 @click.pass_context
-def pr_comment(ctx, number, repo, body):
+def pr_comment(ctx, number, repo, body, body_file):
     """Add a comment to a PR (uses the /issues/{n}/comments endpoint)."""
+    body = read_body(body, body_file, required_by="pr comment")
     client, spec = _resolve(ctx, repo_override=repo)
     try:
         resp = client.post(
@@ -183,10 +187,12 @@ def pr_reopen(ctx, number, repo):
 @click.option("-R", "repo", default=None, help="owner/repo override")
 @click.option("--title", default=None, help="New title")
 @click.option("--body", default=None, help="New body (markdown)")
+@body_file_option
 @click.option("--base", default=None, help="Retarget the base branch")
 @click.pass_context
-def pr_edit(ctx, number, repo, title, body, base):
+def pr_edit(ctx, number, repo, title, body, body_file, base):
     """Edit a PR's title, body, or base branch."""
+    body = read_body(body, body_file)
     payload = {}
     if title is not None:
         payload["title"] = title
@@ -195,7 +201,9 @@ def pr_edit(ctx, number, repo, title, body, base):
     if base is not None:
         payload["base"] = base
     if not payload:
-        raise UsageError("pr edit: at least one of --title, --body, --base is required")
+        raise UsageError(
+            "pr edit: at least one of --title, --body, --body-file, --base is required"
+        )
     client, spec = _resolve(ctx, repo_override=repo)
     try:
         client.patch(

@@ -3,7 +3,7 @@ import json as json_module
 
 import click
 
-from forge.cli._common import filter_json, requested_fields
+from forge.cli._common import body_file_option, filter_json, read_body, requested_fields
 from forge.cli._common import resolve as _resolve
 from forge.client import ForgejoClient
 from forge.errors import UsageError
@@ -88,12 +88,14 @@ def _echo_comments(comments: list[dict]) -> None:
 @issue.command("create")
 @click.option("-R", "repo", default=None, help="owner/repo override")
 @click.option("--title", required=True)
-@click.option("--body", default="")
+@click.option("--body", default=None)
+@body_file_option
 @click.option("--label", "labels", multiple=True,
               help="Label name (repeatable); resolved to integer IDs")
 @click.pass_context
-def issue_create(ctx, repo, title, body, labels):
+def issue_create(ctx, repo, title, body, body_file, labels):
     """Open a new issue. Label names are resolved to Forgejo's integer IDs."""
+    body = read_body(body, body_file) or ""
     client, spec = _resolve(ctx, repo_override=repo)
     try:
         label_ids = _resolve_label_names(client, spec, labels) if labels else []
@@ -107,7 +109,7 @@ def issue_create(ctx, repo, title, body, labels):
 
 
 def _resolve_label_names(client: ForgejoClient, spec, names: tuple[str, ...]) -> list[int]:
-    all_labels = client.get(f"/repos/{spec.owner}/{spec.repo}/labels")
+    all_labels = client.paginate(f"/repos/{spec.owner}/{spec.repo}/labels")
     by_name = {lbl["name"]: lbl["id"] for lbl in all_labels}
     ids = []
     for name in names:
@@ -137,10 +139,12 @@ def issue_close(ctx, number, repo):
 @issue.command("comment")
 @click.argument("number", type=int)
 @click.option("-R", "repo", default=None, help="owner/repo override")
-@click.option("--body", required=True)
+@click.option("--body", default=None)
+@body_file_option
 @click.pass_context
-def issue_comment(ctx, number, repo, body):
+def issue_comment(ctx, number, repo, body, body_file):
     """Add a comment to an issue."""
+    body = read_body(body, body_file, required_by="issue comment")
     client, spec = _resolve(ctx, repo_override=repo)
     try:
         resp = client.post(
@@ -150,3 +154,36 @@ def issue_comment(ctx, number, repo, body):
     finally:
         client.close()
     click.echo(resp.get("html_url", "comment added"))
+
+
+@issue.command("edit")
+@click.argument("number", type=int)
+@click.option("-R", "repo", default=None, help="owner/repo override")
+@click.option("--title", default=None, help="New title")
+@click.option("--body", default=None, help="New body (markdown)")
+@body_file_option
+@click.option("--add-label", "add_labels", multiple=True, help="Label name to add (repeatable)")
+@click.option("--remove-label", "remove_labels", multiple=True,
+              help="Label name to remove (repeatable)")
+@click.pass_context
+def issue_edit(ctx, number, repo, title, body, body_file, add_labels, remove_labels):
+    """Edit an issue's title, body, or labels."""
+    body = read_body(body, body_file)
+    payload = {k: v for k, v in (("title", title), ("body", body)) if v is not None}
+    if not (payload or add_labels or remove_labels):
+        raise UsageError("issue edit: at least one of --title, --body, --body-file, "
+                         "--add-label, --remove-label is required")
+    client, spec = _resolve(ctx, repo_override=repo)
+    path = f"/repos/{spec.owner}/{spec.repo}/issues/{number}"
+    try:
+        # Resolve every name before writing, so an unknown label changes nothing.
+        add_ids = _resolve_label_names(client, spec, add_labels) if add_labels else []
+        remove_ids = _resolve_label_names(client, spec, remove_labels) if remove_labels else []
+        resp = client.patch(path, json=payload) if payload else None
+        if add_ids:
+            client.post(f"{path}/labels", json={"labels": add_ids})
+        for label_id in remove_ids:
+            client.delete(f"{path}/labels/{label_id}")
+    finally:
+        client.close()
+    click.echo((resp or {}).get("html_url") or f"Issue #{number} edited")
