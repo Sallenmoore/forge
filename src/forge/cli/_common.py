@@ -20,9 +20,16 @@ from forge.translate import JSON_FIELD_NAMES
 def resolved_host(host: str | None) -> str:
     """Which Forgejo instance this invocation targets.
 
-    Every caller must agree, so there is exactly one of these.
+    Every caller must agree, so there is exactly one of these. A bare hostname
+    gets https:// (httpx rejects scheme-less URLs, #14); a trailing / is dropped.
     """
-    return host or os.environ.get("FORGEJO_HOST") or DEFAULT_HOST
+    url = (host or os.environ.get("FORGEJO_HOST") or DEFAULT_HOST).rstrip("/")
+    scheme, sep, _ = url.partition("://")
+    if not sep:
+        return f"https://{url}"
+    if scheme not in ("http", "https"):
+        raise UsageError(f"host {url!r}: scheme must be http or https, not {scheme}")
+    return url
 
 
 def build_client(token: str | None, host: str | None, debug: bool = False) -> ForgejoClient:
